@@ -71,3 +71,17 @@ All tools mirror the CLI: `npx tsx "${CLAUDE_PLUGIN_ROOT}/../collector/src/cli.t
   `launchctl load ~/Library/LaunchAgents/com.anveinspect.tick.plist`. Never
   activate it yourself without the user's explicit go-ahead — it is persistent
   machine configuration. `anveinspect schedule status` shows both halves.
+
+## AI layer (analysis over the fleet)
+
+You ARE the intelligence layer; anveinspect supplies deterministic facts. For any
+briefing/summary/analysis request ("how's my fleet?", "fleet report", "what changed
+this week?", "what's expensive?"), call `fleet_report` first — one call, the whole
+picture, formatted for reasoning — then narrate: headline, needs-action (with exact
+ack/declare commands), trend interpretation, hygiene. `fleet_insights` gives the
+same analytics as raw structured data when you need exact numbers or charts.
+Rules: quote the report's numbers verbatim (never recompute or invent); treat
+`provenance: inferred` values as suggestions for the user, not truths; data-quality
+notes (tokens unavailable, basename identities) belong in the briefing when they
+materially weaken a conclusion. Non-MCP assistants can pull the same bundle from
+http://localhost:4177/api/ai (markdown).

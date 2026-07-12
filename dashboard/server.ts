@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus } from '@anveinspect/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -43,6 +43,13 @@ const server = createServer((req, res) => {
   };
   try {
     if (req.url === '/api/fleet') return send(200, snapshot());
+    if (req.url === '/api/ai' || req.url === '/llms.txt') {
+      // AI-discovery surface: full fleet report as markdown for ANY assistant
+      const db = openDb(DEFAULT_DB);
+      const r = buildReport(db);
+      db.close();
+      return send(200, r.markdown, 'text/markdown; charset=utf-8');
+    }
     if (req.url === '/api/check' && req.method === 'POST') return send(200, runCheck(DEFAULT_DB));
     if (req.url?.startsWith('/api/ack/') && req.method === 'POST') {
       const id = decodeURIComponent(req.url.slice('/api/ack/'.length));

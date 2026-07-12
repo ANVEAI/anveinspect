@@ -3,6 +3,8 @@ import { scanClaudeProjects, machineId, machineLabel } from './claude-scanner.js
 import { DEFAULT_DB, openDb, listAgents, agentDetail, declareCadence, runCheck, fleetStatus, ackAlert } from './queries.js';
 import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFile, CONNECTORS_PATH } from './connectors.js';
 import { deliverAlerts, loadNotifyConfig, NOTIFY_PATH } from './notify.js';
+import { buildReport } from './report.js';
+import { computeInsights } from './insights.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -161,6 +163,20 @@ try {
       out({ acked: ok, id }, () => (ok ? `acked ${id}` : `no open alert with id ${id}`));
       break;
     }
+    case 'report': {
+      const db = openDb();
+      const r = buildReport(db);
+      db.close();
+      out({ insights: r.insights, pulse: r.status.pulse }, () => r.markdown);
+      break;
+    }
+    case 'insights': {
+      const db = openDb();
+      const ins = computeInsights(db);
+      db.close();
+      out(ins, () => JSON.stringify(ins, null, 2));
+      break;
+    }
     case 'tick': {
       // scheduled entrypoint: refresh, evaluate, deliver — one command for launchd
       const result = scanClaudeProjects();
@@ -265,7 +281,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule)`);
+      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);

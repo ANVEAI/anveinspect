@@ -4,3 +4,5 @@ export * from './cadence.js';
 export * from './queries.js';
 export * from './connectors.js';
 export * from './notify.js';
+export * from './insights.js';
+export * from './report.js';

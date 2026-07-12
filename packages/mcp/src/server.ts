@@ -18,6 +18,8 @@ import {
   syncConnectors,
   connectorStatus,
   CONNECTORS_PATH,
+  buildReport,
+  computeInsights,
 } from '@anveinspect/collector';
 
 /**
@@ -283,6 +285,43 @@ server.registerTool(
           ? `No connector has synced yet. Configure ${CONNECTORS_PATH} (anveinspect connectors init writes a template) then run fleet_connectors_sync.`
           : rows.map((r) => `${r.vendor}: ${r.agentCount} agents, synced ${r.syncedAt}${r.error ? ` — ERROR: ${r.error}` : ''}`).join('\n'),
       );
+    }),
+);
+
+server.registerTool(
+  'fleet_report',
+  {
+    title: 'Full fleet report (AI-ready)',
+    description:
+      'ONE call for the complete fleet picture, formatted for LLM reasoning: pulse, open alerts, 14-day token trend, top agents with economics, watch coverage gaps, inferred cadence suggestions, stale agents, data-quality notes. Use this FIRST when asked for a briefing, summary, analysis, or "how is my fleet doing" — then narrate insights and recommendations from it.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () =>
+    guard(() => {
+      const db = openDb();
+      const r = buildReport(db);
+      db.close();
+      return ok({ insights: r.insights, pulse: r.status.pulse }, r.markdown);
+    }),
+);
+
+server.registerTool(
+  'fleet_insights',
+  {
+    title: 'Fleet analytics (structured)',
+    description:
+      'Deterministic analytics as structured data: daily token series (30d), week-over-week delta, per-agent economics (tokens, share, avg duration, failure rate), inferred cadence suggestions (provenance-labeled, never auto-declare), unwatched scheduled agents, data-quality counters. Use when you need exact numbers to reason over or chart; use fleet_report for the narrative bundle.',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () =>
+    guard(() => {
+      const db = openDb();
+      const insights = computeInsights(db);
+      db.close();
+      const s = insights;
+      return ok(s, `Insights ready: ${s.topAgents.length} agents profiled, ${s.cadenceSuggestions.length} cadence suggestions, ${s.unwatchedRisks.length} unwatched risks, week-over-week ${s.weekOverWeek.deltaPct ?? 'n/a'}%.`);
     }),
 );
 
