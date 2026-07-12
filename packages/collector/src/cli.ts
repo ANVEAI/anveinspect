@@ -314,7 +314,7 @@ try {
       db.close();
       out(a, () =>
         [
-          `estimated 30d cost: ${fmtUsd(a.estimatedCostUsd)} (${a.ratesSource} rates; ${a.pricedRuns} priced, ${a.unpricedRuns} unknown-model, ${a.tokenlessRuns} tokens-unavailable)`,
+          `estimated 30d cost: ${fmtUsd(a.estimatedCostUsd)} (${a.ratesSource} rates; ${a.pricedRuns} priced${a.partiallyPricedRuns ? ` (${a.partiallyPricedRuns} undercounted — mixed unknown model)` : ''}, ${a.unpricedRuns} unknown-model, ${a.tokenlessRuns} tokens-unavailable)`,
           'by model:',
           ...a.costByModel.map((m) => `  ${m.model.padEnd(30)} ${fmtUsd(m.usd)}`),
           'most expensive agents:',
