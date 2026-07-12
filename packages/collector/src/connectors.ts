@@ -2,18 +2,18 @@ import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
-import type { Agent, Vendor } from '@fleetdeck/schema';
-import { runConnector, CONNECTOR_VENDORS, ConnectorAuthError, type PlatformAgent, type AdapterContext, defaultContext } from '@fleetdeck/adapters';
+import type { Agent, Vendor } from '@anveinspect/schema';
+import { runConnector, CONNECTOR_VENDORS, ConnectorAuthError, type PlatformAgent, type AdapterContext, defaultContext } from '@anveinspect/adapters';
 import { FleetStore } from './store.js';
 
 /**
  * Connector runtime (local mode): credentials live CLIENT-SIDE ONLY in
- * ~/.fleetdeck/connectors.json (0600) and never enter the fleet db or leave
+ * ~/.anveinspect/connectors.json (0600) and never enter the fleet db or leave
  * the machine. Catalog sync writes platform agents into the same inventory
  * as local agents; staleness for them is metadata-derived (lastModifiedAt).
  */
 
-export const CONNECTORS_PATH = process.env.FLEETDECK_CONNECTORS ?? join(homedir(), '.fleetdeck', 'connectors.json');
+export const CONNECTORS_PATH = process.env.ANVEINSPECT_CONNECTORS ?? join(homedir(), '.anveinspect', 'connectors.json');
 
 export type ConnectorsFile = Partial<Record<Vendor, Record<string, unknown>>>;
 

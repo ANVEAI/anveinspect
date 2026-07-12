@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus } from '@fleetdeck/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -54,4 +54,4 @@ const server = createServer((req, res) => {
   }
 });
 
-server.listen(PORT, () => console.log(`fleetdeck dashboard: http://localhost:${PORT} (db: ${DEFAULT_DB})`));
+server.listen(PORT, () => console.log(`anveinspect dashboard: http://localhost:${PORT} (db: ${DEFAULT_DB})`));

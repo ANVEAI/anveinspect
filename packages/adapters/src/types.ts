@@ -1,4 +1,4 @@
-import type { Vendor } from '@fleetdeck/schema';
+import type { Vendor } from '@anveinspect/schema';
 
 /**
  * Isomorphic connector contract (eng review D3): each adapter is a PURE

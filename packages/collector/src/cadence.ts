@@ -1,4 +1,4 @@
-import type { Alert, Cadence, Run } from '@fleetdeck/schema';
+import type { Alert, Cadence, Run } from '@anveinspect/schema';
 import { randomUUID } from 'node:crypto';
 
 /**

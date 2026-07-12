@@ -3,13 +3,13 @@
  * fleet-emit <kind> — hook sink. Reads the hook JSON payload from stdin and
  * appends a normalized, data-boundary-safe event to the local spool.
  *
- *   claude hook ──▶ fleet-emit ──▶ ~/.fleetdeck/spool/events.jsonl ──▶ collector drain
+ *   claude hook ──▶ fleet-emit ──▶ ~/.anveinspect/spool/events.jsonl ──▶ collector drain
  *
  * Rules (from hooks research + design doc):
  * - observation-only: ALWAYS exit 0, never block the agent
  * - keep only data-boundary fields (never prompts, tool args, file contents)
  * - record $PPID + tty for crash detection (PID liveness) and trigger
- *   classification (tty '??' = cron/launchd; FLEETDECK_TRIGGER env wins)
+ *   classification (tty '??' = cron/launchd; ANVEINSPECT_TRIGGER env wins)
  */
 const { appendFileSync, mkdirSync } = require('node:fs');
 const { execSync } = require('node:child_process');
@@ -30,7 +30,7 @@ function main() {
   } catch { /* ps unavailable: leave null */ }
 
   const trigger =
-    process.env.FLEETDECK_TRIGGER ? process.env.FLEETDECK_TRIGGER
+    process.env.ANVEINSPECT_TRIGGER ? process.env.ANVEINSPECT_TRIGGER
     : process.env.CI || process.env.GITHUB_ACTIONS ? 'ci'
     : process.env.CLAUDE_CODE_CHILD_SESSION === '1' ? 'subagent'
     : tty === '??' ? 'scheduled'
@@ -55,7 +55,7 @@ function main() {
   };
 
   try {
-    const spoolDir = join(homedir(), '.fleetdeck', 'spool');
+    const spoolDir = join(homedir(), '.anveinspect', 'spool');
     mkdirSync(spoolDir, { recursive: true });
     appendFileSync(join(spoolDir, 'events.jsonl'), JSON.stringify(event) + '\n');
   } catch { /* spool failure must never break the agent */ }

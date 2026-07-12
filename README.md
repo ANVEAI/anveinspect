@@ -1,4 +1,4 @@
-# fleetdeck (working codename — see docs/naming.md before launch)
+# anveinspect (working codename — see docs/naming.md before launch)
 
 Agent fleet control plane: discovery, lineage & inventory for coding agents.
 Zero-instrumentation — reads the logs your agents already write.
@@ -16,7 +16,7 @@ claude hooks ──▶ fleet-emit ──▶ spool ─┐
 
 ```bash
 npm install
-npx tsx packages/collector/src/cli.ts scan      # inventory -> ~/.fleetdeck/fleet.db
+npx tsx packages/collector/src/cli.ts scan      # inventory -> ~/.anveinspect/fleet.db
 npx tsx packages/collector/src/cli.ts status    # pulse + open alerts
 npm run dash                                    # dashboard at http://localhost:4177
 npm test                                        # 17 tests
@@ -26,15 +26,15 @@ npm test                                        # 17 tests
 
 The plugin (`packages/plugin`) makes any Claude Code session the fleet operator:
 
-- **MCP tools** (`.mcp.json` → `@fleetdeck/mcp`, stdio): `fleet_status`,
+- **MCP tools** (`.mcp.json` → `@anveinspect/mcp`, stdio): `fleet_status`,
   `fleet_attention`, `fleet_agents`, `fleet_agent_detail`, `fleet_scan`,
   `fleet_declare_cadence`, `fleet_check`, `fleet_ack` — zod-validated,
   structured content, read-only annotations.
 - **Skill** `skills/fleet-ops/SKILL.md`: the operating loop (freshness → pulse →
   triage → watch → resolve) + judgment rules (declared cadences are the alerting
   contract; unavailable ≠ zero; stale ≠ broken; never ack silently).
-- **Slash commands**: `/fleetdeck:status`, `/fleetdeck:scan`,
-  `/fleetdeck:attention`, `/fleetdeck:watch <agent> "<expect>"`.
+- **Slash commands**: `/anveinspect:status`, `/anveinspect:scan`,
+  `/anveinspect:attention`, `/anveinspect:watch <agent> "<expect>"`.
 - **Hooks** (`hooks/hooks.json` + `fleet-emit`): live event spool with PID
   recording for crash detection.
 
@@ -70,7 +70,7 @@ identical numbers everywhere.
 - Hooks carry NO token data — JSONL is the sole usage source; parser must degrade
   gracefully (undocumented format, drifts across CC versions).
 - `claude -p --bare` skips hook discovery (may become default): fleet cron jobs
-  must pass `--settings`/`--plugin-dir` explicitly, and set `FLEETDECK_TRIGGER=cron`.
+  must pass `--settings`/`--plugin-dir` explicitly, and set `ANVEINSPECT_TRIGGER=cron`.
 - SessionEnd is graceful-only: crash detection = heartbeat ledger + PID liveness
   (fleet-emit records claudePid) + transcript reconciliation.
 - Claude Code cleans JSONL after ~30 days — scan early, persist everything.

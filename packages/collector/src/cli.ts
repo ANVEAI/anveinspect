@@ -4,7 +4,7 @@ import { DEFAULT_DB, openDb, listAgents, agentDetail, declareCadence, runCheck, 
 import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFile, CONNECTORS_PATH } from './connectors.js';
 
 /**
- * fleetdeck CLI — the surface Claude's plugin skills operate.
+ * anveinspect CLI — the surface Claude's plugin skills operate.
  *   scan                       ingest this machine's Claude Code history
  *   status [--json]            fleet pulse + open alerts + stale agents
  *   agents [--json]            inventory table
@@ -62,7 +62,7 @@ try {
       };
       out(summary, () =>
         [
-          `fleetdeck scan — ${summary.machine}`,
+          `anveinspect scan — ${summary.machine}`,
           `  files: ${summary.filesScanned}  agents: ${summary.agents}  runs: ${summary.runs}`,
           `  spawn edges: ${summary.spawnEdges}  tokens-unavailable runs: ${summary.tokensUnavailable}`,
           `  db: ${summary.db}  (${summary.ms}ms)`,
@@ -101,7 +101,7 @@ try {
     }
     case 'agent': {
       const name = args[1];
-      if (!name) throw new Error('usage: fleetdeck agent <name>');
+      if (!name) throw new Error('usage: anveinspect agent <name>');
       const db = openDb();
       const d = agentDetail(db, name);
       db.close();
@@ -125,19 +125,19 @@ try {
       break;
     }
     case 'cadence': {
-      if (args[1] !== 'declare') throw new Error('usage: fleetdeck cadence declare <agent> "<expect>" [--grace <min>]');
+      if (args[1] !== 'declare') throw new Error('usage: anveinspect cadence declare <agent> "<expect>" [--grace <min>]');
       const agent = args[2];
       const expect = args[3];
-      if (!agent || !expect) throw new Error('usage: fleetdeck cadence declare <agent> "<expect>" [--grace <min>]');
+      if (!agent || !expect) throw new Error('usage: anveinspect cadence declare <agent> "<expect>" [--grace <min>]');
       const graceIdx = args.indexOf('--grace');
       const grace = graceIdx > -1 ? Number(args[graceIdx + 1]) : 60;
       const c = declareCadence(DEFAULT_DB, agent, expect, grace);
-      out(c, () => `declared: ${agent} expects "${expect}" (grace ${grace}m). Run "fleetdeck check" to evaluate.`);
+      out(c, () => `declared: ${agent} expects "${expect}" (grace ${grace}m). Run "anveinspect check" to evaluate.`);
       break;
     }
     case 'ack': {
       const id = args[1];
-      if (!id) throw new Error('usage: fleetdeck ack <alert-id>');
+      if (!id) throw new Error('usage: anveinspect ack <alert-id>');
       const ok = ackAlert(DEFAULT_DB, id);
       out({ acked: ok, id }, () => (ok ? `acked ${id}` : `no open alert with id ${id}`));
       break;
@@ -161,7 +161,7 @@ try {
         const rows = connectorStatus(DEFAULT_DB);
         out(rows, () =>
           rows.length === 0
-            ? `no connector has synced yet — run "fleetdeck connectors sync" (config: ${CONNECTORS_PATH})`
+            ? `no connector has synced yet — run "anveinspect connectors sync" (config: ${CONNECTORS_PATH})`
             : rows.map((r) => `${r.error ? 'X' : '·'} ${r.vendor}: ${r.agentCount} agents, synced ${r.syncedAt}${r.error ? `  ERROR: ${r.error}` : ''}`).join('\n'),
         );
       } else if (sub === 'init') {
@@ -175,9 +175,9 @@ try {
           hermes: existing.hermes ?? { path: '~/.hermes' },
         };
         writeConnectorsFile(template as any);
-        out({ path: CONNECTORS_PATH }, () => `template written to ${CONNECTORS_PATH} (mode 0600). Fill in READ-ONLY credentials only, then "fleetdeck connectors sync".`);
+        out({ path: CONNECTORS_PATH }, () => `template written to ${CONNECTORS_PATH} (mode 0600). Fill in READ-ONLY credentials only, then "anveinspect connectors sync".`);
       } else {
-        throw new Error('usage: fleetdeck connectors <sync|status|init>');
+        throw new Error('usage: anveinspect connectors <sync|status|init>');
       }
       break;
     }
@@ -185,6 +185,6 @@ try {
       throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors)`);
   }
 } catch (err) {
-  console.error(`fleetdeck: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 }

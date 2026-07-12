@@ -1,13 +1,13 @@
 {
-  "name": "@fleetdeck/collector",
+  "name": "@anveinspect/collector",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
-    "@fleetdeck/schema": "*",
-    "@fleetdeck/adapters": "*",
+    "@anveinspect/schema": "*",
+    "@anveinspect/adapters": "*",
     "better-sqlite3": "^11.8.0"
   }
 }

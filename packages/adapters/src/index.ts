@@ -1,4 +1,4 @@
-import type { Vendor } from '@fleetdeck/schema';
+import type { Vendor } from '@anveinspect/schema';
 import type { Adapter, ConnectorResult, AdapterContext } from './types.js';
 import {
   bedrockAdapter, foundryAdapter, vertexAdapter, cloudflareAdapter,

@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { Alert, Cadence } from '@fleetdeck/schema';
+import type { Alert, Cadence } from '@anveinspect/schema';
 import { checkMissedWindow, checkTokenSpike, parseExpect } from './cadence.js';
 import { machineId } from './claude-scanner.js';
 
@@ -10,7 +10,7 @@ import { machineId } from './claude-scanner.js';
  * dashboard. Every consumer sees identical numbers or trust dies.
  */
 
-export const DEFAULT_DB = process.env.FLEETDECK_DB ?? join(homedir(), '.fleetdeck', 'fleet.db');
+export const DEFAULT_DB = process.env.ANVEINSPECT_DB ?? join(homedir(), '.anveinspect', 'fleet.db');
 
 export interface AgentRow {
   fingerprint: string;
@@ -36,7 +36,7 @@ export function openDb(dbPath = DEFAULT_DB, readonly = true): Database.Database 
     return new Database(dbPath, { readonly, fileMustExist: true });
   } catch {
     throw new Error(
-      `No fleet database at ${dbPath}. Run "fleetdeck scan" first (or set FLEETDECK_DB to point at one).`,
+      `No fleet database at ${dbPath}. Run "anveinspect scan" first (or set ANVEINSPECT_DB to point at one).`,
     );
   }
 }
@@ -154,7 +154,7 @@ export function declareCadence(
     const agent = db
       .prepare(`SELECT fingerprint FROM agents WHERE display_name = ? OR fingerprint = ? ORDER BY last_run_at DESC LIMIT 1`)
       .get(agentName, agentName) as any;
-    if (!agent) throw new Error(`No agent named "${agentName}" — run "fleetdeck scan" first or check the name with fleet_agents.`);
+    if (!agent) throw new Error(`No agent named "${agentName}" — run "anveinspect scan" first or check the name with fleet_agents.`);
     const cadence: Cadence = {
       agentFingerprint: agent.fingerprint,
       machineId: machineId(),

@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "fleetdeck-dashboard",
+      "name": "anveinspect-dashboard",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["tsx", "dashboard/server.ts"],
-      "cwd": "/Users/adarshkant/Documents/fleetdeck",
+      "cwd": "/Users/adarshkant/Documents/anveinspect",
       "port": 4177
     }
   ]

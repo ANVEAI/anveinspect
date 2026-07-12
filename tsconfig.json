@@ -12,8 +12,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@fleetdeck/schema": ["packages/schema/src/index.ts"],
-      "@fleetdeck/collector": ["packages/collector/src/index.ts"]
+      "@anveinspect/schema": ["packages/schema/src/index.ts"],
+      "@anveinspect/collector": ["packages/collector/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "dashboard/**/*.ts", "tests/**/*.ts"]

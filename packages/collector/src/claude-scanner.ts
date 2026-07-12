@@ -12,7 +12,7 @@ import {
   type Spawn,
   type TokenCounts,
   type TriggerSource,
-} from '@fleetdeck/schema';
+} from '@anveinspect/schema';
 
 /**
  * Claude Code JSONL scanner (enrichment channel).

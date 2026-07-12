@@ -1,5 +1,5 @@
 {
-  "name": "fleetdeck-monorepo",
+  "name": "anveinspect-monorepo",
   "private": true,
   "version": "0.1.0",
   "description": "Agent fleet control plane — discovery, lineage & inventory for coding agents (working codename)",

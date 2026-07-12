@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { DDL, type Agent, type Run, type Spawn, type Machine } from '@fleetdeck/schema';
+import { DDL, type Agent, type Run, type Spawn, type Machine } from '@anveinspect/schema';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 

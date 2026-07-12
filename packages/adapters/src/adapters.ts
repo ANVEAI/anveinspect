@@ -1,7 +1,7 @@
 import { readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { Vendor } from '@fleetdeck/schema';
+import type { Vendor } from '@anveinspect/schema';
 import { sigv4Headers, entraToken, gcpToken, type AwsCreds, type GcpServiceAccountKey } from './auth.js';
 import { ConnectorAuthError, type Adapter, type ConnectorResult, type PlatformAgent } from './types.js';
 

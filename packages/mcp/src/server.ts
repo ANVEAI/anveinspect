@@ -18,15 +18,15 @@ import {
   syncConnectors,
   connectorStatus,
   CONNECTORS_PATH,
-} from '@fleetdeck/collector';
+} from '@anveinspect/collector';
 
 /**
- * fleetdeck MCP server (stdio) — lets any Claude session operate the fleet:
+ * anveinspect MCP server (stdio) — lets any Claude session operate the fleet:
  * inventory, triage, cadence declarations, and silent-failure checks.
  * All numbers come from the same shared query layer as the CLI and dashboard.
  */
 
-const server = new McpServer({ name: 'fleetdeck', version: '0.2.0' });
+const server = new McpServer({ name: 'anveinspect', version: '0.2.0' });
 
 function ok(structured: unknown, text: string) {
   return {
@@ -238,7 +238,7 @@ server.registerTool(
   {
     title: 'Sync platform connectors',
     description:
-      'Pull agent catalogs from configured platforms (Bedrock, AI Foundry, Vertex, Cloudflare) and local frameworks (OpenClaw, Hermes) into the fleet inventory. Read-only + catalog-only by design. Credentials live client-side in ~/.fleetdeck/connectors.json — never synced anywhere.',
+      'Pull agent catalogs from configured platforms (Bedrock, AI Foundry, Vertex, Cloudflare) and local frameworks (OpenClaw, Hermes) into the fleet inventory. Read-only + catalog-only by design. Credentials live client-side in ~/.anveinspect/connectors.json — never synced anywhere.',
     inputSchema: {
       only: z.array(z.enum(['bedrock', 'foundry', 'vertex', 'cloudflare', 'openclaw', 'hermes'])).optional()
         .describe('Limit to specific vendors; omit for all'),
@@ -280,7 +280,7 @@ server.registerTool(
       return ok(
         { connectors: rows },
         rows.length === 0
-          ? `No connector has synced yet. Configure ${CONNECTORS_PATH} (fleetdeck connectors init writes a template) then run fleet_connectors_sync.`
+          ? `No connector has synced yet. Configure ${CONNECTORS_PATH} (anveinspect connectors init writes a template) then run fleet_connectors_sync.`
           : rows.map((r) => `${r.vendor}: ${r.agentCount} agents, synced ${r.syncedAt}${r.error ? ` — ERROR: ${r.error}` : ''}`).join('\n'),
       );
     }),

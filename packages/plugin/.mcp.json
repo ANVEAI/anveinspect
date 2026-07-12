@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "fleetdeck": {
+    "anveinspect": {
       "command": "npx",
       "args": ["tsx", "${CLAUDE_PLUGIN_ROOT}/../mcp/src/server.ts"]
     }

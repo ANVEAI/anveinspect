@@ -2,7 +2,7 @@
 name: fleet-ops
 description: >-
   Operate the user's AI agent fleet — inventory, health triage, silent-failure
-  alerting, and lineage — via fleetdeck. Use whenever the user asks about their
+  alerting, and lineage — via anveinspect. Use whenever the user asks about their
   agents' health or activity ("which agents ran today?", "did my cron agent run?",
   "what's burning tokens?", "is anything stale/broken?", "show my agent fleet"),
   wants to be alerted when a scheduled agent misses its window, or asks to
@@ -12,7 +12,7 @@ description: >-
 
 # Fleet operations
 
-fleetdeck inventories every coding agent on this machine (interactive sessions,
+anveinspect inventories every coding agent on this machine (interactive sessions,
 scheduled/cron jobs, Task-tool subagents) from Claude Code's own logs — zero
 instrumentation — and alerts when a *declared* schedule is missed or token usage
 spikes. You are the operator; the MCP tools (`fleet_*`) are your controls.
@@ -55,7 +55,7 @@ All tools mirror the CLI: `npx tsx "${CLAUDE_PLUGIN_ROOT}/../collector/src/cli.t
 
 ## Setup notes for scheduled agents (tell users who run cron jobs)
 
-- Cron/launchd entries should set `FLEETDECK_TRIGGER=cron` so runs classify as
+- Cron/launchd entries should set `ANVEINSPECT_TRIGGER=cron` so runs classify as
   scheduled instead of interactive.
 - `claude -p --bare` skips hooks entirely — scheduled invocations must pass
   `--settings` or `--plugin-dir` explicitly or their runs are invisible to hooks
