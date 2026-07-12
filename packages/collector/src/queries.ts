@@ -218,14 +218,13 @@ export function runCheck(dbPath: string, now = new Date()): { newAlerts: Alert[]
       const spike = checkTokenSpike(a.fingerprint, runs[0]!.machineId, a.display_name, runs, now);
       if (spike) newAlerts.push(spike);
     }
-    // Dedup against open (unacked) alerts of the same kind+agent — no re-fire storms
+    // Dedup on the condition's identity (dedup_key), IGNORING ack state: the same
+    // missed window / spiking run never re-fires after ack; a new window or new
+    // spike has a different key and does fire. ON CONFLICT DO NOTHING = exactly-once.
     const insert = db.prepare(
-      `INSERT INTO alerts (id, kind, agent_fingerprint, machine_id, reason, created_at, acked_at, snoozed_until)
-       SELECT @id, @kind, @agentFingerprint, @machineId, @reason, @createdAt, NULL, NULL
-       WHERE NOT EXISTS (
-         SELECT 1 FROM alerts WHERE kind = @kind AND agent_fingerprint IS @agentFingerprint
-           AND acked_at IS NULL AND (snoozed_until IS NULL OR snoozed_until > @createdAt)
-       )`,
+      `INSERT INTO alerts (id, kind, agent_fingerprint, machine_id, reason, dedup_key, created_at, acked_at, snoozed_until)
+       VALUES (@id, @kind, @agentFingerprint, @machineId, @reason, @dedupKey, @createdAt, NULL, NULL)
+       ON CONFLICT(dedup_key) DO NOTHING`,
     );
     const persisted: Alert[] = [];
     for (const alert of newAlerts) {

@@ -101,6 +101,9 @@ export function checkMissedWindow(input: CheckInput): Alert | null {
     agentFingerprint: cadence.agentFingerprint,
     machineId: cadence.machineId,
     reason: `${input.agentDisplayName} missed ${cadence.expect} window — ${overdue} overdue`,
+    // one alert per expected-fire window: acking never re-fires it; a NEW missed
+    // window (different expected time) produces a new key and does fire
+    dedupKey: `missed_window:${cadence.agentFingerprint}:${expected.toISOString()}`,
     createdAt: now.toISOString(),
     ackedAt: null,
     snoozedUntil: null,
@@ -133,6 +136,9 @@ export function checkTokenSpike(
     agentFingerprint,
     machineId,
     reason: `${agentDisplayName} token spike — ${(latest.total / median).toFixed(1)}x trailing median (${fmtTokens(latest.total)} vs ${fmtTokens(median)})`,
+    // keyed to the triggering run: a genuinely new spiking run re-fires; the
+    // same run never re-fires, even after ack
+    dedupKey: `token_spike:${agentFingerprint}:${latest.startedAt}`,
     createdAt: now.toISOString(),
     ackedAt: null,
     snoozedUntil: null,

@@ -64,8 +64,10 @@ CREATE TABLE IF NOT EXISTS alerts (
   created_at TEXT NOT NULL,
   acked_at TEXT,
   snoozed_until TEXT,
-  delivered_at TEXT                   -- exactly-once webhook delivery marker
+  delivered_at TEXT,                  -- exactly-once webhook delivery marker
+  dedup_key TEXT                      -- condition identity; dedup ignores ack state
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedup ON alerts(dedup_key);
 
 CREATE TABLE IF NOT EXISTS connector_syncs (
   vendor TEXT PRIMARY KEY,

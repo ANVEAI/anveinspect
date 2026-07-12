@@ -13,7 +13,8 @@
     "baseUrl": ".",
     "paths": {
       "@anveinspect/schema": ["packages/schema/src/index.ts"],
-      "@anveinspect/collector": ["packages/collector/src/index.ts"]
+      "@anveinspect/collector": ["packages/collector/src/index.ts"],
+      "@anveinspect/adapters": ["packages/adapters/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "dashboard/**/*.ts", "tests/**/*.ts"]

@@ -13,6 +13,10 @@ export class FleetStore {
     this.db.exec(DDL);
     // additive migrations (idempotent — column-exists errors are expected)
     try { this.db.exec(`ALTER TABLE alerts ADD COLUMN delivered_at TEXT`); } catch { /* already migrated */ }
+    try { this.db.exec(`ALTER TABLE alerts ADD COLUMN dedup_key TEXT`); } catch { /* already migrated */ }
+    // backfill legacy rows so the unique index can be created, then index
+    try { this.db.exec(`UPDATE alerts SET dedup_key = kind || ':' || COALESCE(agent_fingerprint,'') || ':' || id WHERE dedup_key IS NULL`); } catch { /* no rows */ }
+    try { this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedup ON alerts(dedup_key)`); } catch { /* already indexed */ }
   }
 
   upsertMachine(m: Machine): void {

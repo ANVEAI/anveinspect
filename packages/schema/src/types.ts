@@ -105,6 +105,13 @@ export interface Alert {
   agentFingerprint: string | null; // null for machine_silent
   machineId: string;
   reason: string;          // plain language: "missed 03:00 window — 2h 14m overdue · machine is up"
+  /**
+   * Identity of the underlying condition — dedup happens on this, ignoring ack
+   * state. missed_window: kind:fp:<expected-fire-ISO> (one alert per window,
+   * never re-fires after ack). token_spike: kind:fp:<triggering-run-ISO> (a new
+   * spiking run re-fires; the same one never does).
+   */
+  dedupKey: string;
   createdAt: string;
   ackedAt: string | null;
   snoozedUntil: string | null;

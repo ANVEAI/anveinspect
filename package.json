@@ -1,6 +1,7 @@
 {
   "name": "anveinspect-monorepo",
   "private": true,
+  "type": "module",
   "version": "0.1.0",
   "description": "Agent fleet control plane — discovery, lineage & inventory for coding agents (working codename)",
   "workspaces": [
@@ -15,6 +16,7 @@
     "dash": "tsx dashboard/server.ts"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
