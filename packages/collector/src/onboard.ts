@@ -26,28 +26,37 @@ export interface PlatformProbe {
   collection: 'local-logs' | 'local-dir' | 'cli-auth-api';
 }
 
-function run(cmd: string, args: string[], timeoutMs = 5000): { ok: boolean; out: string } {
+/** Runs a CLI and reports success + trimmed stdout. Injectable so onboarding
+ *  is deterministically testable without hitting the machine's real CLIs. */
+export type CliRunner = (cmd: string, args: string[], timeoutMs?: number) => { ok: boolean; out: string };
+export type FsProbe = (path: string) => boolean;
+
+const realRun: CliRunner = (cmd, args, timeoutMs = 5000) => {
   try {
     const out = execFileSync(cmd, args, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     return { ok: true, out };
   } catch {
     return { ok: false, out: '' };
   }
+};
+
+export interface ProbeDeps {
+  run?: CliRunner;
+  exists?: FsProbe;
 }
 
-function has(cmd: string): boolean {
-  return run('command', ['-v', cmd]).ok || run('which', [cmd]).ok;
-}
-
-export function probePlatforms(): PlatformProbe[] {
+export function probePlatforms(deps: ProbeDeps = {}): PlatformProbe[] {
+  const run: CliRunner = deps.run ?? realRun;
+  const exists: FsProbe = deps.exists ?? existsSync;
+  const has = (cmd: string) => run('command', ['-v', cmd]).ok || run('which', [cmd]).ok;
   const probes: PlatformProbe[] = [];
 
   // --- Claude Code: local logs, zero config ---
   probes.push({
     vendor: 'claude_code',
     label: 'Claude Code',
-    status: existsSync(join(homedir(), '.claude', 'projects')) ? 'ready' : 'not_present',
-    detail: existsSync(join(homedir(), '.claude', 'projects'))
+    status: exists(join(homedir(), '.claude', 'projects')) ? 'ready' : 'not_present',
+    detail: exists(join(homedir(), '.claude', 'projects'))
       ? 'reads ~/.claude/projects (no signin needed)'
       : 'no ~/.claude/projects found — use Claude Code and it appears automatically',
     fixCommand: '',
@@ -58,8 +67,8 @@ export function probePlatforms(): PlatformProbe[] {
   probes.push({
     vendor: 'codex',
     label: 'Codex',
-    status: existsSync(join(homedir(), '.codex', 'sessions')) ? 'ready' : 'not_present',
-    detail: existsSync(join(homedir(), '.codex', 'sessions'))
+    status: exists(join(homedir(), '.codex', 'sessions')) ? 'ready' : 'not_present',
+    detail: exists(join(homedir(), '.codex', 'sessions'))
       ? 'reads ~/.codex/sessions (no signin needed)'
       : 'no ~/.codex/sessions found — run a codex session and it appears',
     fixCommand: '',
@@ -71,7 +80,7 @@ export function probePlatforms(): PlatformProbe[] {
     ['openclaw', 'OpenClaw', '.openclaw'],
     ['hermes', 'Hermes', '.hermes'],
   ] as const) {
-    const present = existsSync(join(homedir(), dir));
+    const present = exists(join(homedir(), dir));
     probes.push({
       vendor,
       label,
@@ -141,8 +150,8 @@ export interface OnboardReport {
   summary: string;
 }
 
-export function onboardReport(): OnboardReport {
-  const probes = probePlatforms();
+export function onboardReport(deps: ProbeDeps = {}): OnboardReport {
+  const probes = probePlatforms(deps);
   const ready = probes.filter((p) => p.status === 'ready').map((p) => p.label);
   const needsAction = probes.filter((p) => p.status === 'needs_signin' || p.status === 'cli_missing');
   const summary =

@@ -87,6 +87,31 @@ describe('computeInsights', () => {
   });
 });
 
+describe('connector-agent token honesty', () => {
+  it('platform_connector agents report tokens as unavailable (null), never 0', async () => {
+    const { FleetStore } = await import('../packages/collector/src/store.js');
+    const { listAgents } = await import('../packages/collector/src/queries.js');
+    const { mkdtempSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'conn-')), 'fleet.db');
+    const s = new FleetStore(dbPath);
+    s.db.prepare(`INSERT INTO machines (id,label) VALUES ('m1','mbp')`).run();
+    s.db
+      .prepare(
+        `INSERT INTO agents (fingerprint, vendor, source, project_identity, project_identity_source,
+           agent_name, trigger_source, display_name, identity_confidence, first_seen_at, last_run_at)
+         VALUES ('fpv','vertex','platform_connector','us-central1/A1','git_remote','probe','scheduled',
+           'anveinspect-vertex-probe',1.0,'2026-07-13T00:00:00Z','2026-07-13T00:00:00Z')`,
+      )
+      .run();
+    const rows = listAgents(s.db);
+    s.close();
+    const vertex = rows.find((r) => r.vendor === 'vertex')!;
+    expect(vertex.tokens30d).toBeNull(); // catalog-only: unavailable, not 0
+  });
+});
+
 describe('buildReport', () => {
   it('produces a self-describing markdown bundle with real numbers, no dollar figures', () => {
     const { store } = seed();

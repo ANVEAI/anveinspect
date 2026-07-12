@@ -48,7 +48,7 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
   const rows = db
     .prepare(
       `SELECT a.fingerprint, a.display_name, a.vendor, a.trigger_source, a.project_identity_source,
-              a.identity_confidence, a.last_run_at,
+              a.identity_confidence, a.last_run_at, a.source,
               (SELECT COUNT(*) FROM runs r WHERE r.agent_fingerprint = a.fingerprint) AS run_count,
               (SELECT r.status FROM runs r WHERE r.agent_fingerprint = a.fingerprint ORDER BY r.started_at DESC LIMIT 1) AS last_status,
               (SELECT r.machine_id FROM runs r WHERE r.agent_fingerprint = a.fingerprint ORDER BY r.started_at DESC LIMIT 1) AS m_id,
@@ -77,6 +77,9 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
         }
       }
       if (!anyAvailable && tokenRows.length > 0) tokens30d = null;
+      // catalog-only connector agents have NO token telemetry by design —
+      // "unavailable" is honest; "0" would falsely claim zero usage
+      if (r.source === 'platform_connector') tokens30d = null;
       const ageDays = r.last_run_at ? (now - Date.parse(r.last_run_at)) / DAY : Infinity;
       const status: AgentRow['status'] =
         r.last_status === 'error' ? 'failed' : ageDays > 7 && r.run_count > 3 ? 'stale' : 'healthy';

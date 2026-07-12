@@ -1,138 +1,457 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>anveinspect — agent fleet</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AnveInspect — Agent Fleet Control Plane</title>
 <style>
-/* Approved design: dark ops console (variant A) + fleet-pulse headline (variant B port).
-   Tokens from the design doc's Design Specification section. */
+/* ── Design system (elevated dark-ops → enterprise SaaS) ───────────────────
+   Approved DNA kept: dark, terminal-adjacent precision, ONE accent per status.
+   Elevated: real surfaces/elevation, KPI tiles, charts, multi-view routing.  */
 :root{
-  --bg:#0b0e12; --surface:#11151b; --surface2:#161b23; --line:#232a35;
-  --txt:#e8edf4; --dim:#8b96a5; --faint:#525d6b;
-  --red:#ff5d55; --amber:#ffb454; --ok:#3ecf8e;
+  --bg:#0a0d12; --surface:#10141b; --surface2:#161c25; --elevated:#1b222d;
+  --line:#232b37; --line-soft:#1a212b;
+  --txt:#eef2f7; --dim:#8b97a6; --faint:#566172;
+  --ok:#3ecf8e; --red:#ff5d55; --amber:#ffb454; --info:#5b9dff;
+  --ok-bg:rgba(62,207,142,.10); --red-bg:rgba(255,93,85,.11); --amber-bg:rgba(255,180,84,.11); --info-bg:rgba(91,157,255,.12);
+  --radius:10px; --radius-sm:7px;
+  --shadow:0 1px 0 rgba(255,255,255,.02) inset, 0 8px 24px -12px rgba(0,0,0,.6);
 }
 *{margin:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--txt);font:14px/1.45 "Söhne","Neue Haas Grotesk",-apple-system,sans-serif}
-.mono{font-family:"Berkeley Mono","JetBrains Mono",ui-monospace,monospace}
-.app{display:grid;grid-template-columns:196px 1fr;min-height:100vh}
-.rail{background:var(--surface);border-right:1px solid var(--line);padding:18px 0}
-.brand{padding:0 18px 22px;font-family:ui-monospace,monospace;font-size:13px;letter-spacing:.14em}
-.brand b{color:var(--ok)}
-.nav a{display:flex;justify-content:space-between;padding:8px 18px;color:var(--dim);text-decoration:none;font-size:13.5px}
-.nav a.active{color:var(--txt);background:var(--surface2);border-left:2px solid var(--ok);padding-left:16px}
-.nav .n{font-family:ui-monospace,monospace;font-size:12px;color:var(--faint)}
-.nav a.alerts .n{color:var(--red)}
-.railfoot{margin-top:40px;padding:0 18px;font-size:11.5px;color:var(--faint)}
-.main{overflow:auto;padding-bottom:40px}
-.pulse{padding:22px 24px 4px}
-.pulse h1{font-size:24px;font-weight:600;letter-spacing:-.01em}
-.pulse h1 .bad{color:var(--red)} .pulse h1 .warn{color:var(--amber)}
-.pulse p{color:var(--dim);font-size:13px;margin-top:4px}
-.attn{margin:16px 24px 0;border:1px solid #3a2426;background:linear-gradient(180deg,#191113,#14100f);border-radius:8px}
-.attn h2{font-size:11px;letter-spacing:.12em;color:var(--red);padding:10px 16px 6px;text-transform:uppercase}
-.attn.allclear{border-color:var(--line);background:var(--surface)}
-.attn.allclear h2{color:var(--ok)}
-.attn-row{display:flex;align-items:center;gap:14px;padding:9px 16px;border-top:1px solid #241a1c}
-.attn-row .sev{width:8px;height:8px;border-radius:99px;background:var(--red);flex:none}
-.attn-row .sev.amber{background:var(--amber)}
-.attn-row .who{font-family:ui-monospace,monospace;font-size:13px;flex:0 0 220px}
-.attn-row .why{color:var(--dim);font-size:13px;flex:1}
-.sev-tag{font-family:ui-monospace,monospace;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--red);flex:0 0 auto;min-width:38px}
-.sev-tag.amber{color:var(--amber)}
-.ack{font-size:12px;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 12px;background:var(--surface2);cursor:pointer}
-.ack:hover{border-color:var(--dim)}
-.tablewrap{margin:18px 24px}
-h3{font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin-bottom:8px}
-table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-th{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);text-align:left;padding:9px 14px;border-bottom:1px solid var(--line);font-weight:500}
-td{padding:9px 14px;border-bottom:1px solid #1a2029;font-size:13px}
-tr:last-child td{border-bottom:none}
-.agent .v{font-family:ui-monospace,monospace;font-size:10px;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:1px 5px;margin-left:8px;vertical-align:1px}
-td.mono{font-family:ui-monospace,monospace;font-size:12.5px;color:var(--dim)}
-.badge{font-family:ui-monospace,monospace;font-size:11px;border-radius:5px;padding:2px 8px}
-.b-healthy{color:var(--ok);background:rgba(62,207,142,.08)}
-.b-stale{color:var(--amber);background:rgba(255,180,84,.09)}
-.b-failed{color:var(--red);background:rgba(255,93,85,.1)}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font:14px/1.5 "Söhne","Inter",-apple-system,BlinkMacSystemFont,sans-serif;-webkit-font-smoothing:antialiased}
+.mono{font-family:"Berkeley Mono","JetBrains Mono",ui-monospace,SFMono-Regular,monospace}
+a{color:inherit;text-decoration:none}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px;border:2px solid var(--bg)}
+
+.app{display:grid;grid-template-columns:230px 1fr;height:100vh}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────*/
+.rail{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 0}
+.brand{display:flex;align-items:center;gap:9px;padding:4px 20px 20px;font-family:"Berkeley Mono",ui-monospace,monospace;font-size:13.5px;letter-spacing:.13em}
+.brand .dot{width:9px;height:9px;border-radius:99px;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.brand b{color:var(--ok);font-weight:600}
+.nav{display:flex;flex-direction:column;gap:2px;padding:0 10px}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:var(--radius-sm);color:var(--dim);font-size:13.5px;font-weight:450;cursor:pointer;transition:background .12s,color .12s}
+.nav a:hover{background:var(--surface2);color:var(--txt)}
+.nav a.active{background:var(--elevated);color:var(--txt);font-weight:550}
+.nav a svg{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7}
+.nav a .badge{margin-left:auto;font-family:ui-monospace,monospace;font-size:11px;color:var(--faint);background:var(--surface2);padding:1px 7px;border-radius:99px;min-width:22px;text-align:center}
+.nav a.alerts .badge.hot{color:var(--red);background:var(--red-bg)}
+.railfoot{margin-top:auto;padding:14px 20px 4px;border-top:1px solid var(--line-soft)}
+.railfoot .op{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--dim)}
+.railfoot .op .k{width:6px;height:6px;border-radius:99px;background:var(--ok)}
+.railfoot .m{font-size:11px;color:var(--faint);margin-top:6px}
+
+/* ── Main ────────────────────────────────────────────────────────────────*/
+.main{overflow-y:auto;overflow-x:hidden}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(10,13,18,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:15px 28px}
+.topbar h1{font-size:18px;font-weight:600;letter-spacing:-.01em}
+.topbar .sub{color:var(--dim);font-size:12.5px}
+.topbar .spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:5px 12px}
+.chip .k{width:6px;height:6px;border-radius:99px;background:var(--ok)}
+.btn{font-size:12.5px;color:var(--txt);background:var(--surface2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 13px;cursor:pointer;transition:border-color .12s,background .12s;font-weight:500}
+.btn:hover{border-color:var(--dim);background:var(--elevated)}
+.btn.primary{background:var(--ok-bg);border-color:transparent;color:var(--ok)}
+.page{padding:24px 28px 60px;max-width:1240px;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.section-title{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin:26px 0 12px;font-weight:600}
+.section-title:first-child{margin-top:0}
+
+/* ── KPI tiles ───────────────────────────────────────────────────────────*/
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.kpi .label{font-size:11.5px;color:var(--dim);letter-spacing:.02em;display:flex;align-items:center;gap:7px}
+.kpi .num{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:8px;font-family:"Berkeley Mono",ui-monospace,monospace}
+.kpi .num.warn{color:var(--amber)} .kpi .num.crit{color:var(--red)}
+.kpi .delta{font-size:12px;color:var(--dim);margin-top:5px}
+.kpi .delta .up{color:var(--ok)} .kpi .delta .down{color:var(--red)}
+.kpi .spark{margin-top:10px;height:26px;display:flex;align-items:flex-end;gap:2px}
+.kpi .spark i{flex:1;background:var(--line);border-radius:2px 2px 0 0;min-height:2px}
+
+/* ── Cards & grid ────────────────────────────────────────────────────────*/
+.grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;align-items:start}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card .hd{display:flex;align-items:baseline;justify-content:space-between;padding:15px 18px 0}
+.card .hd h3{font-size:13.5px;font-weight:600}
+.card .hd .meta{font-size:11.5px;color:var(--faint);font-family:ui-monospace,monospace}
+.card .bd{padding:16px 18px}
+
+/* ── Token trend chart (single hue, baseline-anchored) ───────────────────*/
+.chart{height:150px;display:flex;align-items:flex-end;gap:3px;position:relative;padding-top:8px}
+.chart .bar{flex:1;background:var(--info);border-radius:3px 3px 0 0;min-height:2px;opacity:.85;transition:opacity .12s;position:relative;cursor:default}
+.chart .bar:hover{opacity:1}
+.chart .bar[data-empty="1"]{background:var(--line-soft)}
+.chart-axis{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);font-family:ui-monospace,monospace;margin-top:8px}
+.tooltip{position:fixed;z-index:50;background:var(--elevated);border:1px solid var(--line);border-radius:7px;padding:7px 11px;font-size:12px;pointer-events:none;box-shadow:0 8px 24px -8px #000;opacity:0;transition:opacity .1s}
+.tooltip .t-day{color:var(--faint);font-family:ui-monospace,monospace;font-size:10.5px}
+.tooltip .t-val{color:var(--txt);font-weight:600;font-family:ui-monospace,monospace}
+
+/* ── Platform breakdown bars ─────────────────────────────────────────────*/
+.pbar{display:flex;align-items:center;gap:11px;padding:7px 0}
+.pbar .pv{font-family:ui-monospace,monospace;font-size:11px;color:var(--dim);flex:0 0 92px}
+.pbar .track{flex:1;height:8px;background:var(--line-soft);border-radius:99px;overflow:hidden}
+.pbar .fill{height:100%;background:var(--ok);border-radius:99px}
+.pbar .pn{font-family:ui-monospace,monospace;font-size:11.5px;color:var(--txt);flex:0 0 42px;text-align:right}
+
+/* ── Tables ──────────────────────────────────────────────────────────────*/
+table{width:100%;border-collapse:collapse}
+thead th{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600;white-space:nowrap;user-select:none}
+thead th.sortable{cursor:pointer}thead th.sortable:hover{color:var(--dim)}
+thead th .arrow{opacity:.5;font-size:9px}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--line-soft);font-size:13px}
+tbody tr:hover{background:var(--surface2)}
+tbody tr:last-child td{border-bottom:none}
+.agent-cell{display:flex;align-items:center;gap:9px}
+.agent-cell .nm{font-weight:500}
+.vtag{font-family:ui-monospace,monospace;font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.mono-c{font-family:ui-monospace,monospace;font-size:12px;color:var(--dim)}
+.pill{font-family:ui-monospace,monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;border-radius:5px;padding:2px 8px;font-weight:500}
+.pill.healthy{color:var(--ok);background:var(--ok-bg)} .pill.stale{color:var(--amber);background:var(--amber-bg)} .pill.failed{color:var(--red);background:var(--red-bg)}
 .unavail{color:var(--faint);font-style:italic;font-size:12px}
-.conf{color:var(--faint);font-size:10.5px}
-.empty{margin:60px auto;max-width:420px;text-align:center;color:var(--dim)}
-.empty code{display:block;margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px;font-family:ui-monospace,monospace;font-size:12px;color:var(--txt)}
-</style></head><body>
+
+/* ── Filters ─────────────────────────────────────────────────────────────*/
+.filters{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.search{flex:1;min-width:220px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 13px;color:var(--txt);font-size:13px}
+.search::placeholder{color:var(--faint)}
+.search:focus{outline:none;border-color:var(--dim)}
+.fchips{display:flex;gap:6px}
+.fchip{font-size:12px;color:var(--dim);border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 12px;cursor:pointer;transition:all .12s}
+.fchip:hover{color:var(--txt)}
+.fchip.on{color:var(--txt);background:var(--elevated);border-color:var(--dim)}
+
+/* ── Attention rows ──────────────────────────────────────────────────────*/
+.attn-row{display:flex;align-items:center;gap:13px;padding:12px 18px;border-bottom:1px solid var(--line-soft)}
+.attn-row:last-child{border-bottom:none}
+.attn-row .sev{width:8px;height:8px;border-radius:99px;flex:none;background:var(--red)}
+.attn-row .sev.amber{background:var(--amber)}
+.attn-row .sevtag{font-family:ui-monospace,monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--red);flex:0 0 42px}
+.attn-row .sevtag.amber{color:var(--amber)}
+.attn-row .who{font-family:ui-monospace,monospace;font-size:13px;flex:0 0 200px;color:var(--txt)}
+.attn-row .why{color:var(--dim);font-size:13px;flex:1}
+.ack{font-size:12px;color:var(--txt);border:1px solid var(--line);border-radius:var(--radius-sm);padding:5px 13px;background:var(--surface2);cursor:pointer}
+.ack:hover{border-color:var(--dim)}
+
+/* ── Connector cards ─────────────────────────────────────────────────────*/
+.conn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.conn{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.conn .top{display:flex;align-items:center;justify-content:space-between}
+.conn .name{font-size:14px;font-weight:600}
+.conn .st{font-family:ui-monospace,monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;padding:3px 9px;border-radius:99px}
+.conn .st.ready{color:var(--ok);background:var(--ok-bg)} .conn .st.wait{color:var(--amber);background:var(--amber-bg)} .conn .st.err{color:var(--red);background:var(--red-bg)} .conn .st.off{color:var(--faint);background:var(--surface2)}
+.conn .detail{color:var(--dim);font-size:12.5px;margin-top:11px;line-height:1.5}
+.conn .fix{margin-top:11px;background:var(--bg);border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:9px 11px;font-family:ui-monospace,monospace;font-size:11.5px;color:var(--info);word-break:break-all}
+.conn .count{font-family:"Berkeley Mono",ui-monospace,monospace;font-size:22px;font-weight:600;margin-top:10px}
+.conn .count small{font-size:12px;color:var(--faint);font-weight:400;font-family:inherit}
+
+/* ── Empty / loading ─────────────────────────────────────────────────────*/
+.empty{text-align:center;color:var(--dim);padding:50px 20px}
+.empty .big{font-size:15px;color:var(--txt);margin-bottom:6px}
+.skel{background:linear-gradient(90deg,var(--surface2) 25%,var(--elevated) 37%,var(--surface2) 63%);background-size:400% 100%;animation:sk 1.3s infinite;border-radius:6px}
+@keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
+.allclear{display:flex;align-items:center;gap:10px;padding:16px 18px;color:var(--ok);font-size:13.5px}
+
+@media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+@media(max-width:720px){.app{grid-template-columns:1fr}.rail{display:none}}
+</style></head>
+<body data-palette="#5b9dff">
 <div class="app">
-  <div class="rail">
-    <div class="brand">ANVE<b>INSPECT</b></div>
-    <div class="nav">
-      <a class="active" href="#">Agents <span class="n" id="n-agents">–</span></a>
-      <a class="alerts" href="#">Attention <span class="n" id="n-attn">–</span></a>
-      <a href="#">Machines <span class="n" id="n-machines">–</span></a>
-      <a href="#">Connectors <span class="n" id="n-conn">–</span></a>
+  <nav class="rail">
+    <div class="brand"><span class="dot"></span>ANVE<b>INSPECT</b></div>
+    <div class="nav" id="nav">
+      <a data-route="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
+      <a data-route="agents"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Agents<span class="badge" id="b-agents">–</span></a>
+      <a data-route="attention" class="alerts"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".5"/></svg>Attention<span class="badge" id="b-attn">–</span></a>
+      <a data-route="connectors"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg>Connectors<span class="badge" id="b-conn">–</span></a>
     </div>
-    <div class="railfoot" id="foot">loading…</div>
-  </div>
+    <div class="railfoot">
+      <div class="op"><span class="k"></span>Operated by Claude</div>
+      <div class="m" id="railmachine">—</div>
+    </div>
+  </nav>
+
   <div class="main">
-    <div class="pulse"><h1 id="pulse">…</h1><p id="pulse-sub"></p></div>
-    <div class="attn" id="attn" hidden></div>
-    <div class="tablewrap"><h3 id="inv-title">Inventory</h3>
-      <table id="inv"><thead><tr><th>Agent</th><th>Machine</th><th>Last run</th><th>Status</th><th>Trigger</th><th>Runs</th><th>Tokens 30d</th></tr></thead><tbody></tbody></table>
+    <div class="topbar">
+      <div><h1 id="pageTitle">Overview</h1></div>
+      <div class="spacer"></div>
+      <span class="chip" id="freshChip"><span class="k"></span><span id="freshText">loading…</span></span>
+      <button class="btn" id="refreshBtn">Refresh</button>
     </div>
+    <div id="view"></div>
   </div>
 </div>
+<div class="tooltip" id="tt"></div>
+
 <script>
-const rel = (iso) => {
-  if (!iso) return '—';
-  const s = (Date.now() - Date.parse(iso)) / 1000;
-  if (s < 3600) return Math.max(1, Math.round(s / 60)) + 'm ago';
-  if (s < 86400) return Math.round(s / 3600) + 'h ago';
-  return Math.round(s / 86400) + 'd ago';
-};
-const fmt = (n) => n === null ? null : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n);
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = (s,r=document)=>r.querySelector(s);
+const el = (t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmt = n => n==null?null : n>=1e6?(n/1e6).toFixed(1)+'M' : n>=1e3?Math.round(n/1e3)+'k' : String(n);
+const rel = iso => { if(!iso) return '—'; const s=(Date.now()-Date.parse(iso))/1000;
+  if(s<3600)return Math.max(1,Math.round(s/60))+'m ago'; if(s<86400)return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; };
 
-fetch('/api/fleet').then((r) => r.json()).then((d) => {
-  const p = d.pulse;
-  document.getElementById('n-agents').textContent = p.total;
-  document.getElementById('n-attn').textContent = p.failed + p.stale;
-  document.getElementById('n-machines').textContent = p.machines;
-  document.getElementById('n-conn').textContent = (d.connectors ?? []).filter((c) => !c.error).length;
-  const parts = [`${p.total} agents`];
-  if (p.failed) parts.push(`<span class="bad">${p.failed} failed</span>`);
-  if (p.stale) parts.push(`<span class="warn">${p.stale} stale</span>`);
-  if (!p.failed && !p.stale) parts.push('all on schedule');
-  document.getElementById('pulse').innerHTML = parts.join(' · ');
-  document.getElementById('pulse-sub').textContent =
-    `Across ${p.machines} machine${p.machines === 1 ? '' : 's'} and ${p.platforms} platform${p.platforms === 1 ? '' : 's'} · snapshot ${rel(d.generatedAt)}`;
-  document.getElementById('foot').textContent = (d.machines[0]?.label ?? '') + ' · scanned ' + rel(d.machines[0]?.last_heartbeat_at);
+let FLEET=null, INSIGHTS=null;
+const state = { agentSearch:'', agentVendor:'all', agentStatus:'all', sortKey:'lastRunAt', sortDir:-1 };
 
-  const attn = document.getElementById('attn');
-  attn.hidden = false;
-  if (d.attention.length === 0) {
-    attn.className = 'attn allclear';
-    attn.innerHTML = '<h2>All ' + p.total + ' agents on schedule</h2>';
-  } else {
-    attn.innerHTML = '<h2>Needs attention · ' + d.attention.length + '</h2>' + d.attention.map((a) => {
-      const sevLabel = a.severity === 'amber' ? 'stale' : 'alert';
-      // a11y: severity conveyed by text (sev-tag) AND color, never color alone
-      return `<div class="attn-row"><span class="sev ${a.severity === 'amber' ? 'amber' : ''}" role="img" aria-label="severity: ${sevLabel}"></span><span class="sev-tag ${a.severity === 'amber' ? 'amber' : ''}">${sevLabel}</span><span class="who">${esc(a.who)}</span><span class="why">${esc(a.why)}</span>${a.alertId ? `<button class="ack" data-id="${esc(a.alertId)}">Ack</button>` : ''}</div>`;
-    }).join('');
-    attn.querySelectorAll('.ack').forEach((btn) => btn.addEventListener('click', async () => {
-      await fetch('/api/ack/' + encodeURIComponent(btn.dataset.id), { method: 'POST' });
-      location.reload();
-    }));
+async function load(){
+  const [f,i] = await Promise.all([
+    fetch('/api/fleet').then(r=>r.json()),
+    fetch('/api/insights').then(r=>r.json()).catch(()=>null),
+  ]);
+  FLEET=f; INSIGHTS=i;
+  const p=f.pulse;
+  $('#b-agents').textContent=p.total;
+  const attnBadge=$('#b-attn'); attnBadge.textContent=p.openAlerts+p.stale; attnBadge.classList.toggle('hot',p.openAlerts>0);
+  $('#b-conn').textContent=(f.connectors||[]).filter(c=>!c.error).length;
+  $('#freshText').textContent='synced '+rel(f.generatedAt);
+  $('#railmachine').textContent=(f.machines[0]?.label||'—')+' · '+p.machines+' machine'+(p.machines===1?'':'s');
+  render();
+}
+
+const routes=['overview','agents','attention','connectors'];
+const titles={overview:'Overview',agents:'Agents',attention:'Attention',connectors:'Connectors'};
+function currentRoute(){const h=location.hash.replace('#','');return routes.includes(h)?h:'overview';}
+function go(r){location.hash=r;}
+window.addEventListener('hashchange',render);
+
+function setActive(){
+  const r=currentRoute();
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.route===r));
+  $('#pageTitle').textContent=titles[r];
+}
+document.querySelectorAll('#nav a').forEach(a=>a.onclick=()=>go(a.dataset.route));
+$('#refreshBtn').onclick=()=>{$('#refreshBtn').textContent='…';load().then(()=>$('#refreshBtn').textContent='Refresh');};
+
+function render(){
+  if(!FLEET) return;
+  setActive();
+  const r=currentRoute();
+  const v=$('#view'); v.innerHTML='';
+  const page=el('div','page');
+  ({overview:renderOverview,agents:renderAgents,attention:renderAttention,connectors:renderConnectors}[r])(page);
+  v.appendChild(page);
+}
+
+/* ── OVERVIEW ─────────────────────────────────────────────────────────── */
+function renderOverview(page){
+  const p=FLEET.pulse;
+  const totalTok = INSIGHTS ? INSIGHTS.dailyTokens.reduce((s,d)=>s+d.tokens,0) : null;
+  const wow = INSIGHTS?.weekOverWeek;
+  // KPI row
+  const kpis=el('div','kpis');
+  kpis.appendChild(kpiTile('Total agents', p.total, `${p.platforms} platforms · ${p.machines} machine${p.machines===1?'':'s'}`));
+  kpis.appendChild(kpiTile('Open alerts', p.openAlerts, p.openAlerts?'needs attention':'all clear', p.openAlerts?'crit':''));
+  kpis.appendChild(kpiTile('Stale agents', p.stale, p.stale?'quiet >7 days':'none', p.stale?'warn':''));
+  kpis.appendChild(kpiTile('Tokens · 30d', fmt(totalTok)??'—',
+    wow&&wow.deltaPct!=null?`<span class="${wow.deltaPct<=0?'up':'down'}">${wow.deltaPct>0?'+':''}${wow.deltaPct}%</span> vs last week`:'usage', ''));
+  page.appendChild(kpis);
+
+  // Trend + platform breakdown
+  const st=el('div','section-title'); st.textContent='Fleet activity'; page.appendChild(st);
+  const grid=el('div','grid2');
+  grid.appendChild(trendCard());
+  grid.appendChild(platformCard());
+  page.appendChild(grid);
+
+  // Top agents + attention summary
+  const st2=el('div','section-title'); st2.textContent='Highest token consumers · 30d'; page.appendChild(st2);
+  page.appendChild(topAgentsCard());
+}
+
+function kpiTile(label,num,delta,cls=''){
+  const t=el('div','kpi');
+  t.innerHTML=`<div class="label">${esc(label)}</div><div class="num ${cls}">${num}</div><div class="delta">${delta}</div>`;
+  return t;
+}
+
+function trendCard(){
+  const c=el('div','card');
+  const days=INSIGHTS?.dailyTokens||[];
+  const max=Math.max(1,...days.map(d=>d.tokens));
+  const last14=days.slice(-14);
+  c.innerHTML=`<div class="hd"><h3>Token usage</h3><span class="meta">last 14 days</span></div>`;
+  const bd=el('div','bd');
+  const chart=el('div','chart');
+  last14.forEach(d=>{
+    const h=Math.max(2,Math.round((d.tokens/max)*130));
+    const bar=el('div','bar'); bar.style.height=h+'px';
+    if(d.tokens===0)bar.dataset.empty='1';
+    bar.addEventListener('mousemove',e=>showTip(e,`${d.day}`,`${fmt(d.tokens)||0} tokens · ${d.runs} runs`));
+    bar.addEventListener('mouseleave',hideTip);
+    chart.appendChild(bar);
+  });
+  bd.appendChild(chart);
+  const axis=el('div','chart-axis');
+  axis.innerHTML=`<span>${last14[0]?.day.slice(5)||''}</span><span>${last14[last14.length-1]?.day.slice(5)||''}</span>`;
+  bd.appendChild(axis);
+  c.appendChild(bd);
+  return c;
+}
+
+function platformCard(){
+  const c=el('div','card');
+  c.innerHTML=`<div class="hd"><h3>Agents by platform</h3></div>`;
+  const bd=el('div','bd');
+  const byV={};
+  FLEET.inventory.forEach(a=>byV[a.vendor]=(byV[a.vendor]||0)+1);
+  const entries=Object.entries(byV).sort((a,b)=>b[1]-a[1]);
+  const max=Math.max(1,...entries.map(e=>e[1]));
+  entries.forEach(([v,n])=>{
+    const row=el('div','pbar');
+    row.innerHTML=`<span class="pv">${esc(v.replace('_',' '))}</span><span class="track"><span class="fill" style="width:${Math.round(n/max*100)}%"></span></span><span class="pn">${n}</span>`;
+    bd.appendChild(row);
+  });
+  c.appendChild(bd);
+  return c;
+}
+
+function topAgentsCard(){
+  const c=el('div','card');
+  const top=(INSIGHTS?.topAgents||[]).slice(0,8);
+  const bd=el('div','bd'); bd.style.padding='0';
+  if(!top.length){ bd.innerHTML='<div class="empty">No token data yet.</div>'; c.appendChild(bd); return c; }
+  const t=el('table');
+  t.innerHTML=`<thead><tr><th>Agent</th><th>Trigger</th><th>Runs</th><th>Tokens</th><th>Share</th><th>Unclean-end</th></tr></thead>`;
+  const tb=el('tbody');
+  top.forEach(a=>{
+    const tr=el('tr');
+    tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(a.name)}</span></td>
+      <td class="mono-c">${esc(a.trigger)}</td><td class="mono-c">${a.runs30d}</td>
+      <td class="mono-c">${a.tokens30d==null?'<span class="unavail">unavail</span>':fmt(a.tokens30d)}</td>
+      <td class="mono-c">${a.share==null?'—':Math.round(a.share*100)+'%'}</td>
+      <td class="mono-c">${Math.round(a.failureRate*100)}%</td>`;
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb); bd.appendChild(t); c.appendChild(bd);
+  return c;
+}
+
+/* ── AGENTS ───────────────────────────────────────────────────────────── */
+function renderAgents(page){
+  const vendors=['all',...new Set(FLEET.inventory.map(a=>a.vendor))];
+  const filters=el('div','filters');
+  const search=el('input','search'); search.placeholder='Search agents, machines, vendors…'; search.value=state.agentSearch;
+  search.oninput=()=>{state.agentSearch=search.value;drawAgentTable();};
+  filters.appendChild(search);
+  const vchips=el('div','fchips');
+  vendors.forEach(v=>{const ch=el('div','fchip'+(state.agentVendor===v?' on':''));ch.textContent=v==='all'?'all vendors':v.replace('_',' ');ch.onclick=()=>{state.agentVendor=v;refreshAgents();};vchips.appendChild(ch);});
+  filters.appendChild(vchips);
+  const schips=el('div','fchips');
+  ['all','healthy','stale','failed'].forEach(s=>{const ch=el('div','fchip'+(state.agentStatus===s?' on':''));ch.textContent=s;ch.onclick=()=>{state.agentStatus=s;refreshAgents();};schips.appendChild(ch);});
+  filters.appendChild(schips);
+  page.appendChild(filters);
+
+  const card=el('div','card'); card.id='agentsCard';
+  agentsCardEl=card;
+  page.appendChild(card);
+  drawAgentTable();
+}
+let agentsCardEl=null;
+function refreshAgents(){ // re-render filters (for chip active state) then table
+  const v=$('#view'); v.innerHTML=''; const p=el('div','page'); renderAgents(p); v.appendChild(p);
+}
+function filteredAgents(){
+  let rows=FLEET.inventory.slice();
+  const q=state.agentSearch.trim().toLowerCase();
+  if(q) rows=rows.filter(a=>(a.name+' '+a.vendor+' '+(a.machine||'')+' '+a.trigger).toLowerCase().includes(q));
+  if(state.agentVendor!=='all') rows=rows.filter(a=>a.vendor===state.agentVendor);
+  if(state.agentStatus!=='all') rows=rows.filter(a=>a.status===state.agentStatus);
+  const k=state.sortKey,dir=state.sortDir;
+  rows.sort((a,b)=>{let av=a[k],bv=b[k];
+    if(k==='lastRunAt'){av=av?Date.parse(av):0;bv=bv?Date.parse(bv):0;}
+    if(k==='tokens30d'){av=av??-1;bv=bv??-1;}
+    if(typeof av==='string')return dir*av.localeCompare(bv);
+    return dir*((av>bv)-(av<bv));});
+  return rows;
+}
+function drawAgentTable(){
+  const card=agentsCardEl; if(!card)return;
+  const rows=filteredAgents();
+  const cols=[['name','Agent'],['machine','Machine'],['lastRunAt','Last run'],['status','Status'],['trigger','Trigger'],['runCount','Runs'],['tokens30d','Tokens 30d']];
+  const arrow=k=>state.sortKey===k?`<span class="arrow">${state.sortDir<0?'▼':'▲'}</span>`:'';
+  let html=`<div class="hd"><h3>${rows.length} agent${rows.length===1?'':'s'}</h3><span class="meta">${state.agentVendor==='all'?'all vendors':state.agentVendor} · ${state.agentStatus}</span></div>
+    <div class="bd" style="padding:0"><table><thead><tr>`;
+  cols.forEach(([k,l])=>html+=`<th class="sortable" data-k="${k}">${l} ${arrow(k)}</th>`);
+  html+='</tr></thead><tbody>';
+  if(!rows.length){ html+=`<tr><td colspan="7"><div class="empty"><div class="big">No agents match.</div>Try clearing filters.</div></td></tr>`; }
+  rows.forEach(a=>{
+    html+=`<tr><td class="agent-cell"><span class="nm">${esc(a.name)}</span><span class="vtag">${esc(a.vendor.replace('_',' '))}</span>${a.identitySource==='basename'?'<span class="unavail" title="identity from directory name">◦</span>':''}</td>
+      <td class="mono-c">${esc(a.machine||'—')}</td>
+      <td class="mono-c">${rel(a.lastRunAt)}</td>
+      <td><span class="pill ${a.status}">${a.status}</span></td>
+      <td class="mono-c">${esc(a.trigger)}</td>
+      <td class="mono-c">${a.runCount}</td>
+      <td class="mono-c">${a.tokens30d==null?'<span class="unavail">unavailable</span>':(fmt(a.tokens30d)??'0')}</td></tr>`;
+  });
+  html+='</tbody></table></div>';
+  card.innerHTML=html;
+  card.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
+    const k=th.dataset.k;
+    if(state.sortKey===k)state.sortDir*=-1;else{state.sortKey=k;state.sortDir=k==='name'||k==='trigger'||k==='status'?1:-1;}
+    drawAgentTable();
+  });
+}
+
+/* ── ATTENTION ────────────────────────────────────────────────────────── */
+function renderAttention(page){
+  const items=FLEET.attention;
+  const card=el('div','card');
+  if(!items.length){
+    card.innerHTML=`<div class="allclear">✓ All ${FLEET.pulse.total} agents on schedule — nothing needs attention.</div>`;
+    page.appendChild(card); return;
   }
+  card.innerHTML=`<div class="hd"><h3>Needs attention</h3><span class="meta">${items.length} item${items.length===1?'':'s'}</span></div>`;
+  const bd=el('div'); bd.style.padding='4px 0';
+  items.forEach(a=>{
+    const amber=a.severity==='amber';
+    const row=el('div','attn-row');
+    row.innerHTML=`<span class="sev ${amber?'amber':''}"></span><span class="sevtag ${amber?'amber':''}">${amber?'stale':'alert'}</span>
+      <span class="who">${esc(a.who)}</span><span class="why">${esc(a.why)}</span>
+      ${a.alertId?`<button class="ack" data-id="${esc(a.alertId)}">Ack</button>`:''}`;
+    bd.appendChild(row);
+  });
+  card.appendChild(bd); page.appendChild(card);
+  card.querySelectorAll('.ack').forEach(b=>b.onclick=async()=>{
+    b.textContent='…'; await fetch('/api/ack/'+encodeURIComponent(b.dataset.id),{method:'POST'}); await load();
+  });
+}
 
-  const tb = document.querySelector('#inv tbody');
-  document.getElementById('inv-title').textContent =
-    `Inventory · ${p.total} agents · ${p.machines} machines · ${p.platforms} platforms`;
-  tb.innerHTML = d.inventory.map((i) => `<tr>
-    <td class="agent">${esc(i.name)}<span class="v">${esc(i.vendor.replace('_', ' '))}</span>${i.identitySource === 'basename' ? ' <span class="conf" title="identity from directory name — connect a git remote for cross-machine matching">◦ basename id</span>' : ''}</td>
-    <td class="mono">${esc(i.machine)}</td>
-    <td class="mono">${rel(i.lastRunAt)}</td>
-    <td><span class="badge b-${i.status}">${i.status === 'failed' ? 'FAILED' : i.status === 'stale' ? 'STALE' : 'healthy'}</span></td>
-    <td class="mono">${esc(i.trigger)}</td>
-    <td class="mono">${i.runCount}</td>
-    <td class="mono">${i.tokens30d === null ? '<span class="unavail">unavailable</span>' : fmt(i.tokens30d) ?? '0'}</td>
-  </tr>`).join('');
-  if (d.inventory.length === 0) {
-    document.querySelector('.main').insertAdjacentHTML('beforeend',
-      '<div class="empty">No agents found on this machine yet.<code>npm run scan</code></div>');
-  }
-});
+/* ── CONNECTORS ───────────────────────────────────────────────────────── */
+const VENDOR_LABEL={claude_code:'Claude Code',codex:'Codex',openclaw:'OpenClaw',hermes:'Hermes',bedrock:'Amazon Bedrock',vertex:'Google Vertex',foundry:'Microsoft AI Foundry',cloudflare:'Cloudflare Workers'};
+function renderConnectors(page){
+  const synced=FLEET.connectors||[];
+  const byV=Object.fromEntries(synced.map(c=>[c.vendor,c]));
+  const localVendors=['claude_code','codex'];
+  const all=['claude_code','codex','openclaw','hermes','vertex','bedrock','foundry','cloudflare'];
+  const invByV={}; FLEET.inventory.forEach(a=>invByV[a.vendor]=(invByV[a.vendor]||0)+1);
+
+  const intro=el('div'); intro.style.cssText='color:var(--dim);font-size:13px;margin-bottom:16px;max-width:640px';
+  intro.innerHTML=`AnveInspect reuses the platform CLIs you're already signed into — no API keys to paste. Run <span class="mono" style="color:var(--info)">anveinspect doctor</span> to connect everything, or <span class="mono" style="color:var(--info)">/anveinspect:setup</span> from Claude.`;
+  page.appendChild(intro);
+
+  const grid=el('div','conn-grid');
+  all.forEach(v=>{
+    const card=el('div','conn');
+    const count=invByV[v]||0;
+    const s=byV[v];
+    let stClass,stText,detail,fix='';
+    if(localVendors.includes(v)){ stClass='ready';stText='local';detail='Reads local logs — no signin needed.'; }
+    else if(s && s.error){ stClass='err';stText='error';detail=s.error; }
+    else if(s && s.agentCount>=0 && !s.error){ stClass='ready';stText='connected';detail='Synced '+rel(s.syncedAt)+'.'+(s.warnings&&s.warnings.length?' '+s.warnings[0]:''); }
+    else { stClass='wait';stText='connect';detail='Not connected yet — reuse your CLI login.';fix=fixFor(v); }
+    card.innerHTML=`<div class="top"><span class="name">${VENDOR_LABEL[v]||v}</span><span class="st ${stClass}">${stText}</span></div>
+      <div class="count">${count} <small>agent${count===1?'':'s'} in inventory</small></div>
+      <div class="detail">${esc(detail)}</div>${fix?`<div class="fix">${esc(fix)}</div>`:''}`;
+    grid.appendChild(card);
+  });
+  page.appendChild(grid);
+}
+function fixFor(v){return {vertex:'gcloud auth login',bedrock:'aws configure  (or aws sso login)',cloudflare:'anveinspect connectors set cloudflare apiToken <token>',foundry:'az login'}[v]||'anveinspect connectors init';}
+
+/* ── tooltip ──────────────────────────────────────────────────────────── */
+const tt=$('#tt');
+function showTip(e,day,val){tt.innerHTML=`<div class="t-day">${esc(day)}</div><div class="t-val">${esc(val)}</div>`;tt.style.opacity='1';tt.style.left=(e.clientX+14)+'px';tt.style.top=(e.clientY-10)+'px';}
+function hideTip(){tt.style.opacity='0';}
+
+load();
+setInterval(load, 60000); // live refresh every minute
 </script>
 </body></html>
