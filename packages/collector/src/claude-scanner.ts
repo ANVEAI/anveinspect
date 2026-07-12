@@ -342,7 +342,7 @@ function ingestLine(obj: any, acc: SessionAcc, seenUsage: Set<string>): void {
   if (obj.type === 'user') acc.endedCleanly = false;
 }
 
-function resolveProjectIdentity(
+export function resolveProjectIdentity(
   cwd: string | null,
   projectDir: string,
 ): { identity: string; source: 'git_remote' | 'basename' } {

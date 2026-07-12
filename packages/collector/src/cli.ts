@@ -1,5 +1,6 @@
 import { FleetStore } from './store.js';
 import { scanClaudeProjects, machineId, machineLabel } from './claude-scanner.js';
+import { scanCodexSessions } from './codex-scanner.js';
 import { DEFAULT_DB, openDb, listAgents, agentDetail, declareCadence, runCheck, fleetStatus, ackAlert } from './queries.js';
 import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFile, CONNECTORS_PATH } from './connectors.js';
 import { deliverAlerts, loadNotifyConfig, NOTIFY_PATH } from './notify.js';
@@ -62,12 +63,15 @@ try {
     case 'scan': {
       const started = Date.now();
       const result = scanClaudeProjects();
+      const codex = scanCodexSessions();
       const store = new FleetStore(DEFAULT_DB);
       store.upsertMachine({ id: machineId(), label: machineLabel(), lastHeartbeatAt: new Date().toISOString() });
       const tx = store.db.transaction(() => {
         for (const a of result.agents) store.upsertAgent(a);
         for (const r of result.runs) store.upsertRun(r);
         for (const s of result.spawns) store.insertSpawn(s);
+        for (const a of codex.agents) store.upsertAgent(a);
+        for (const r of codex.runs) store.upsertRun(r);
       });
       tx();
       store.close();
@@ -180,12 +184,15 @@ try {
     case 'tick': {
       // scheduled entrypoint: refresh, evaluate, deliver — one command for launchd
       const result = scanClaudeProjects();
+      const codex = scanCodexSessions();
       const store = new FleetStore(DEFAULT_DB);
       store.upsertMachine({ id: machineId(), label: machineLabel(), lastHeartbeatAt: new Date().toISOString() });
       const tx = store.db.transaction(() => {
         for (const a of result.agents) store.upsertAgent(a);
         for (const r of result.runs) store.upsertRun(r);
         for (const s of result.spawns) store.insertSpawn(s);
+        for (const a of codex.agents) store.upsertAgent(a);
+        for (const r of codex.runs) store.upsertRun(r);
       });
       tx();
       store.close();
