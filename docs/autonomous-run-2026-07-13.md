@@ -45,3 +45,12 @@ what's running, why, agent insights, and control, in a single dashboard.
   cost section (KPI + cost-by-model bars + clickable most-expensive-agents + hours).
 - verified live: est $9.2k/30d (opus 96%, voice-forms $7.3k), busiest 2am, 0 bursts.
   66 tests green (4 new). Dollars labeled estimates; token counts exact.
+
+### Cycle 4 (activity timeline) — DONE
+- Started a 2h continuous background loop (codex probe + scan + check every 12min,
+  logging fleet health to ~/.anveinspect/continuous-run.log).
+- Built recentActivity() + /api/activity + Activity dashboard view: live
+  chronological feed (agent, vendor, trigger, status dot, tokens, rel time),
+  click-through to agent detail. Safe token parsing.
+- verified live: feed shows the continuous loop's codex probes + Claude subagents
+  in real time. 67 tests green (1 new).

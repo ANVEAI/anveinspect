@@ -259,6 +259,34 @@ export function ackAlert(dbPath: string, alertId: string): boolean {
   }
 }
 
+/** Recent runs across the whole fleet, newest first — the activity feed. */
+export function recentActivity(db: Database.Database, limit = 60): {
+  runId: string; agentName: string; vendor: string; trigger: string; machine: string;
+  startedAt: string; endedAt: string | null; status: string; tokens: number | null; isSubagent: boolean;
+}[] {
+  const machines = new Map((db.prepare(`SELECT id,label FROM machines`).all() as any[]).map((m) => [m.id, m.label]));
+  const rows = db
+    .prepare(
+      `SELECT r.id, r.started_at, r.ended_at, r.status, r.tokens_by_model, r.machine_id,
+              a.display_name, a.vendor, a.trigger_source
+       FROM runs r JOIN agents a ON a.fingerprint = r.agent_fingerprint
+       WHERE r.started_at IS NOT NULL ORDER BY r.started_at DESC LIMIT ?`,
+    )
+    .all(limit) as any[];
+  return rows.map((r) => {
+    let tokens: number | null = null;
+    if (r.tokens_by_model !== null) {
+      try { tokens = (Object.values(JSON.parse(r.tokens_by_model)) as any[]).reduce((s, t) => s + t.input + t.output, 0); }
+      catch { tokens = null; }
+    }
+    return {
+      runId: r.id, agentName: r.display_name, vendor: r.vendor, trigger: r.trigger_source,
+      machine: machines.get(r.machine_id) ?? '—', startedAt: r.started_at, endedAt: r.ended_at,
+      status: r.status, tokens, isSubagent: r.trigger_source === 'subagent',
+    };
+  });
+}
+
 export function fleetStatus(db: Database.Database) {
   const agents = listAgents(db);
   const machines = db.prepare(`SELECT id, label, last_heartbeat_at FROM machines`).all() as any[];
