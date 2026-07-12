@@ -11,16 +11,16 @@
  * - record $PPID + tty for crash detection (PID liveness) and trigger
  *   classification (tty '??' = cron/launchd; ANVEINSPECT_TRIGGER env wins)
  */
-const { appendFileSync, mkdirSync } = require('node:fs');
-const { execSync } = require('node:child_process');
-const { join } = require('node:path');
-const { homedir } = require('node:os');
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 function main() {
   const kind = process.argv[2] || 'unknown';
   let payload = {};
   try {
-    const raw = require('node:fs').readFileSync(0, 'utf8');
+    const raw = readFileSync(0, 'utf8');
     if (raw.trim()) payload = JSON.parse(raw);
   } catch { /* unreadable payload: still emit the event skeleton */ }
 

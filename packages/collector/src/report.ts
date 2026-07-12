@@ -50,17 +50,17 @@ export function buildReport(db: Database.Database, now = new Date()): FleetRepor
       (insights.weekOverWeek.deltaPct === null ? '' : ` (${insights.weekOverWeek.deltaPct >= 0 ? '+' : ''}${insights.weekOverWeek.deltaPct}%)`),
     ``,
     `## Top agents by 30d tokens`,
-    `| agent | trigger | runs | tokens | share | avg run | failure rate |`,
+    `| agent | trigger | runs | tokens | share | avg run | unclean-end rate* |`,
     `|---|---|---|---|---|---|---|`,
     ...insights.topAgents.map(
       (a) =>
-        `| ${a.name} | ${a.trigger} | ${a.runs30d} | ${fmt(a.tokens30d)} | ${a.share === null ? '—' : Math.round(a.share * 100) + '%'} | ${a.avgRunMinutes === null ? '—' : a.avgRunMinutes + 'm'} | ${Math.round(a.failureRate * 100)}% |`,
+        `| ${a.name} | ${a.trigger} | ${a.runs30d} | ${fmt(a.tokens30d)} | ${a.share === null ? '—' : Math.round(a.share * 100) + '%'} | ${a.avgRunMinutes === null ? '—' : a.avgRunMinutes >= 120 ? Math.round(a.avgRunMinutes / 60) + 'h' : a.avgRunMinutes + 'm'} | ${Math.round(a.failureRate * 100)}% |`,
     ),
     ``,
     `## Watch coverage`,
     ...(insights.unwatchedRisks.length
       ? insights.unwatchedRisks.map((r) => `- UNWATCHED: ${r.agent} — ${r.reason}`)
-      : ['- all scheduled agents have declared cadences']),
+      : ['- all locally-collected scheduled agents have declared cadences (platform-connector agents are catalog-only in v1 — not alertable, so not counted here)']),
     ...(insights.cadenceSuggestions.length
       ? [
           ``,
@@ -80,7 +80,7 @@ export function buildReport(db: Database.Database, now = new Date()): FleetRepor
     `## Inventory summary`,
     `${agents.filter((a) => a.trigger !== 'subagent').length} top-level agents, ${agents.filter((a) => a.trigger === 'subagent').length} subagent types across vendors: ${[...new Set(agents.map((a) => a.vendor))].join(', ')}`,
     ``,
-    `_Costs: token counts are facts; dollar estimates require a pricing file and are deliberately not computed here._`,
+    `_*unclean-end rate counts error AND unknown_end runs — for interactive agents this mostly means sessions closed mid-turn, not real failures. Costs: token counts are facts; dollar estimates require a pricing file and are deliberately not computed here._`,
   ];
 
   return { markdown: lines.join('\n'), status, insights };

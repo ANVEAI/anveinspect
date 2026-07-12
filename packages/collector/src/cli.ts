@@ -84,7 +84,7 @@ try {
       out(summary, () =>
         [
           `anveinspect scan — ${summary.machine}`,
-          `  files: ${summary.filesScanned}  agents: ${summary.agents}  runs: ${summary.runs}`,
+          `  files: ${summary.filesScanned}  agents touched: ${summary.agents}  runs: ${summary.runs}  (fleet totals: see status)`,
           `  spawn edges: ${summary.spawnEdges}  tokens-unavailable runs: ${summary.tokensUnavailable}`,
           `  db: ${summary.db}  (${summary.ms}ms)`,
         ].join('\n'),

@@ -114,14 +114,22 @@ export const foundryAdapter: Adapter<FoundryConfig> = async (config, ctx) => {
 export interface VertexConfig {
   projectId: string;
   location: string;
-  serviceAccountKey: GcpServiceAccountKey;
+  /** service-account key (production path) — OR provide accessToken directly */
+  serviceAccountKey?: GcpServiceAccountKey;
+  /** short-lived OAuth token, e.g. `gcloud auth print-access-token` (gcloud-user path) */
+  accessToken?: string;
 }
 
 export const vertexAdapter: Adapter<VertexConfig> = async (config, ctx) => {
-  const token = await gcpToken(ctx.fetch, config.serviceAccountKey, ctx.now()).catch((e) => {
-    throw new ConnectorAuthError('vertex', e.message,
-      'check the service-account key JSON; the account needs roles/aiplatform.viewer (read-only)');
-  });
+  if (!config.serviceAccountKey && !config.accessToken) {
+    throw new ConnectorAuthError('vertex', 'no credentials configured',
+      'provide serviceAccountKey (roles/aiplatform.viewer) or accessToken from `gcloud auth print-access-token`');
+  }
+  const token = config.accessToken
+    ?? await gcpToken(ctx.fetch, config.serviceAccountKey!, ctx.now()).catch((e) => {
+      throw new ConnectorAuthError('vertex', e.message,
+        'check the service-account key JSON; the account needs roles/aiplatform.viewer (read-only)');
+    });
   const agents: PlatformAgent[] = [];
   const warnings: string[] = [];
   const base = `https://${config.location}-aiplatform.googleapis.com/v1beta1/projects/${config.projectId}/locations/${config.location}/reasoningEngines`;
@@ -131,8 +139,13 @@ export const vertexAdapter: Adapter<VertexConfig> = async (config, ctx) => {
       headers: { authorization: `Bearer ${token}` },
     });
     if (res.status === 401 || res.status === 403) {
-      throw new ConnectorAuthError('vertex', `authentication failed (${res.status})`,
-        'grant roles/aiplatform.viewer to the service account and confirm project/location');
+      // surface Google's own reason (e.g. SERVICE_DISABLED) — it's more actionable
+      // than any generic hint (verified against live API 2026-07-13)
+      const detail = await res.json().then((j: any) => j?.error?.message ?? '').catch(() => '');
+      throw new ConnectorAuthError('vertex', `authentication failed (${res.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`,
+        detail.includes('has not been used') || detail.includes('disabled')
+          ? 'enable it: gcloud services enable aiplatform.googleapis.com --project <project>'
+          : 'grant roles/aiplatform.viewer to the credential and confirm project/location');
     }
     if (!res.ok) {
       warnings.push(`vertex page ${page + 1} failed with HTTP ${res.status}; catalog may be incomplete`);
