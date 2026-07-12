@@ -12,3 +12,4 @@ export * from './cli-credentials.js';
 export * from './lineage.js';
 export * from './pricing.js';
 export * from './analytics.js';
+export * from './tags.js';

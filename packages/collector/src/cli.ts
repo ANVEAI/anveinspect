@@ -10,6 +10,7 @@ import { onboardReport } from './onboard.js';
 import { lineageSummary, topLineageRoots, lineageTree } from './lineage.js';
 import { computeAnalytics } from './analytics.js';
 import { fmtUsd } from './pricing.js';
+import { addTag, removeTag, tagSummary } from './tags.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -299,6 +300,14 @@ try {
       if (json) console.log(JSON.stringify({ onboarding: report, pulse: st.pulse, connectors: syncOutcomes }, null, 2));
       break;
     }
+    case 'tag': {
+      const [, action, agent, tag] = args;
+      if (action === 'add' && agent && tag) { const r = addTag(DEFAULT_DB, agent, tag); out(r, () => `tagged ${r.agent} #${r.tag}`); }
+      else if (action === 'remove' && agent && tag) { const ok = removeTag(DEFAULT_DB, agent, tag); out({ removed: ok }, () => ok ? `removed #${tag} from ${agent}` : `${agent} had no #${tag}`); }
+      else if (action === 'list' || !action) { const db = openDb(); const ts = tagSummary(db); db.close(); out(ts, () => ts.length ? ts.map((t) => `#${t.tag} (${t.count})`).join('  ') : 'no tags yet — try: anveinspect tag add <agent> <tag>'); }
+      else throw new Error('usage: anveinspect tag <add|remove|list> [agent] [tag]');
+      break;
+    }
     case 'costs': {
       const db = openDb();
       const a = computeAnalytics(db);
@@ -396,7 +405,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, costs, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
+      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, costs, tag, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);

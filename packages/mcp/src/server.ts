@@ -26,6 +26,9 @@ import {
   topLineageRoots,
   lineageTree,
   computeAnalytics,
+  addTag,
+  removeTag,
+  tagSummary,
 } from '@anveinspect/collector';
 
 /**
@@ -424,6 +427,34 @@ server.registerTool(
       db.close();
       const top = a.topCostAgents.slice(0, 3).map((x) => `${x.name} $${x.usd.toFixed(2)}`).join(', ');
       return ok(a, `Estimated 30d cost $${a.estimatedCostUsd.toFixed(2)} (${a.ratesSource} rates; ${a.tokenlessRuns} runs unpriced). Top: ${top}. Busiest hour: ${a.busiestHours.slice().sort((x,y)=>y.runs-x.runs)[0]?.hour}:00.`);
+    }),
+);
+
+server.registerTool(
+  'fleet_tag',
+  {
+    title: 'Tag / group agents',
+    description:
+      'Organize the fleet with LOCAL tags (cohort, tier, owner, "retire"). Purely local metadata — never touches any platform or changes agent behavior. action add/remove attaches/detaches a tag; action list shows all tags with counts. This is the safe control primitive for grouping agents in the dashboard.',
+    inputSchema: {
+      action: z.enum(['add', 'remove', 'list']).describe('add or remove a tag on an agent, or list all tags'),
+      agent: z.string().optional().describe('agent display name (required for add/remove)'),
+      tag: z.string().optional().describe('tag text (required for add/remove)'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  },
+  async ({ action, agent, tag }) =>
+    guard(() => {
+      if (action === 'list') {
+        const db = openDb();
+        const ts = tagSummary(db);
+        db.close();
+        return ok({ tags: ts }, ts.length ? ts.map((t) => `#${t.tag} (${t.count})`).join(', ') : 'No tags yet.');
+      }
+      if (!agent || !tag) return fail('add/remove require both agent and tag');
+      if (action === 'add') { const r = addTag(DEFAULT_DB, agent, tag); return ok(r, `Tagged ${r.agent} #${r.tag}.`); }
+      const removed = removeTag(DEFAULT_DB, agent, tag);
+      return ok({ removed, agent, tag }, removed ? `Removed #${tag} from ${agent}.` : `${agent} had no #${tag}.`);
     }),
 );
 

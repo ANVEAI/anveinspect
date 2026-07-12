@@ -54,3 +54,12 @@ what's running, why, agent insights, and control, in a single dashboard.
   click-through to agent detail. Safe token parsing.
 - verified live: feed shows the continuous loop's codex probes + Claude subagents
   in real time. 67 tests green (1 new).
+
+### Cycle 5 (control: agent tagging) — DONE
+- Built tags.ts: LOCAL agent tags/groups (cohort/tier/owner/retire), write-only
+  to fleet db, never touches any platform. agent_tags table (additive migration).
+- Wired: listAgents/agentDetail decorated with tags, /api/tag + /api/untag,
+  CLI `tag add|remove|list`, fleet_tag MCP tool (16 tools), drawer tag editor
+  (add/remove chips) + inline tag chips in agent list.
+- verified live: tagged voice-forms #critical #production, chips render in table
+  + drawer, add/remove works. 71 tests green (4 new). Cleaned demo tags after.

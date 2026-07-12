@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import type { Alert, Cadence } from '@anveinspect/schema';
 import { checkMissedWindow, checkTokenSpike, parseExpect } from './cadence.js';
 import { machineId } from './claude-scanner.js';
+import { allTags, tagsFor } from './tags.js';
 
 /**
  * Shared read/alert layer — single source of truth for CLI, MCP server, and
@@ -27,6 +28,7 @@ export interface AgentRow {
   tokens30d: number | null;
   cadence: string | null;
   cadenceDeclared: boolean;
+  tags: string[];
 }
 
 const DAY = 86_400_000;
@@ -59,6 +61,7 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
     .all() as any[];
 
   const now = Date.now();
+  const tagMap = allTags(db);
   return rows
     .filter((r) => opts.includeSubagents !== false || r.trigger_source !== 'subagent')
     .map((r) => {
@@ -98,6 +101,7 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
         tokens30d,
         cadence: r.cadence ?? null,
         cadenceDeclared: r.cadence_declared === 1,
+        tags: tagMap.get(r.fingerprint) ?? [],
       };
     });
 }
@@ -128,6 +132,7 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
     .get(agent.fingerprint) as any;
   return {
     agent,
+    tags: tagsFor(db, agent.fingerprint),
     cadence: cadence ?? null,
     subagentSpawns: spawnsOut?.n ?? 0,
     recentRuns: runs.map((r) => ({

@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree, agentDetail, computeAnalytics, recentActivity } from '@anveinspect/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree, agentDetail, computeAnalytics, recentActivity, addTag, removeTag } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -103,6 +103,19 @@ const server = createServer((req, res) => {
       }
     }
     if (req.url === '/api/check' && req.method === 'POST') return send(200, runCheck(DEFAULT_DB));
+    if ((req.url === '/api/tag' || req.url === '/api/untag') && req.method === 'POST') {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        try {
+          const { agent, tag } = JSON.parse(body || '{}');
+          if (!agent || !tag) return send(400, { error: 'agent and tag required' });
+          if (req.url === '/api/tag') return send(200, addTag(DEFAULT_DB, agent, tag));
+          return send(200, { removed: removeTag(DEFAULT_DB, agent, tag), agent, tag });
+        } catch (e) { return send(400, { error: e instanceof Error ? e.message : String(e) }); }
+      });
+      return;
+    }
     if (req.url?.startsWith('/api/ack/') && req.method === 'POST') {
       const id = decodeURIComponent(req.url.slice('/api/ack/'.length));
       return send(200, { acked: ackAlert(DEFAULT_DB, id), id });

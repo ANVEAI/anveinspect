@@ -17,6 +17,15 @@ export class FleetStore {
     // backfill legacy rows so the unique index can be created, then index
     try { this.db.exec(`UPDATE alerts SET dedup_key = kind || ':' || COALESCE(agent_fingerprint,'') || ':' || id WHERE dedup_key IS NULL`); } catch { /* no rows */ }
     try { this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_alerts_dedup ON alerts(dedup_key)`); } catch { /* already indexed */ }
+    // local control metadata: user-applied tags/groups on agents (never touches any platform)
+    try {
+      this.db.exec(`CREATE TABLE IF NOT EXISTS agent_tags (
+        agent_fingerprint TEXT NOT NULL,
+        tag TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (agent_fingerprint, tag)
+      )`);
+    } catch { /* already migrated */ }
   }
 
   upsertMachine(m: Machine): void {
