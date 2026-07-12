@@ -34,6 +34,8 @@ body{background:var(--bg);color:var(--txt);font:14px/1.45 "Söhne","Neue Haas Gr
 .attn-row .sev.amber{background:var(--amber)}
 .attn-row .who{font-family:ui-monospace,monospace;font-size:13px;flex:0 0 220px}
 .attn-row .why{color:var(--dim);font-size:13px;flex:1}
+.ack{font-size:12px;color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:4px 12px;background:var(--surface2);cursor:pointer}
+.ack:hover{border-color:var(--dim)}
 .tablewrap{margin:18px 24px}
 h3{font-size:11px;letter-spacing:.12em;color:var(--faint);text-transform:uppercase;margin-bottom:8px}
 table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -102,7 +104,11 @@ fetch('/api/fleet').then((r) => r.json()).then((d) => {
     attn.innerHTML = '<h2>All ' + p.total + ' agents on schedule</h2>';
   } else {
     attn.innerHTML = '<h2>Needs attention · ' + d.attention.length + '</h2>' + d.attention.map((a) =>
-      `<div class="attn-row"><span class="sev ${a.severity === 'amber' ? 'amber' : ''}"></span><span class="who">${esc(a.who)}</span><span class="why">${esc(a.why)}</span></div>`).join('');
+      `<div class="attn-row"><span class="sev ${a.severity === 'amber' ? 'amber' : ''}"></span><span class="who">${esc(a.who)}</span><span class="why">${esc(a.why)}</span>${a.alertId ? `<button class="ack" data-id="${esc(a.alertId)}">Ack</button>` : ''}</div>`).join('');
+    attn.querySelectorAll('.ack').forEach((btn) => btn.addEventListener('click', async () => {
+      await fetch('/api/ack/' + encodeURIComponent(btn.dataset.id), { method: 'POST' });
+      location.reload();
+    }));
   }
 
   const tb = document.querySelector('#inv tbody');
