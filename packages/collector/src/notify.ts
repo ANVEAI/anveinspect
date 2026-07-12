@@ -84,14 +84,14 @@ export function undeliveredOpenAlerts(dbPath: string): DeliverableAlert[] {
         `SELECT al.id, al.kind, al.reason, al.created_at,
                 a.display_name,
                 m.label AS machine_label,
-                (SELECT c.expect FROM cadences c WHERE c.agent_fingerprint = al.agent_fingerprint LIMIT 1) AS cadence,
+                (SELECT c.expect FROM cadences c WHERE c.agent_fingerprint = al.agent_fingerprint ORDER BY c.declared DESC, c.updated_at DESC LIMIT 1) AS cadence,
                 (SELECT r.started_at FROM runs r WHERE r.agent_fingerprint = al.agent_fingerprint
                    AND r.status IN ('completed') ORDER BY r.started_at DESC LIMIT 1) AS last_success_at
          FROM alerts al
          LEFT JOIN agents a ON a.fingerprint = al.agent_fingerprint
          LEFT JOIN machines m ON m.id = al.machine_id
          WHERE al.acked_at IS NULL AND al.delivered_at IS NULL
-           AND (al.snoozed_until IS NULL OR al.snoozed_until > datetime('now'))
+           AND (al.snoozed_until IS NULL OR julianday(al.snoozed_until) <= julianday('now'))
          ORDER BY al.created_at ASC`,
       )
       .all() as DeliverableAlert[];

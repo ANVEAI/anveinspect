@@ -12,6 +12,12 @@ export interface AwsCreds {
 const sha256hex = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
 const hmac = (key: Buffer | string, data: string) => createHmac('sha256', key).update(data).digest();
 
+/**
+ * Minimal SigV4 for the current callers only: fixed path (`/agents/`), empty
+ * query, ASCII. NOT a general SigV4 — before adding a caller with a query
+ * string or non-ASCII path, implement RFC3986 path encoding + canonical query
+ * sorting/encoding here, or requests will fail with SignatureDoesNotMatch.
+ */
 export function sigv4Headers(opts: {
   creds: AwsCreds;
   method: string;

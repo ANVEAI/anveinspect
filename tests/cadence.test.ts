@@ -87,6 +87,36 @@ describe('checkMissedWindow', () => {
     });
     expect(alert).toBeNull();
   });
+
+  it('every Nh: grace actually applies (a run just inside interval+grace is not missed)', () => {
+    // every 4h, grace 60m. Last run 4h30m ago -> within 4h+60m window -> NOT missed.
+    const lastRun = new Date(MON_10.getTime() - (4 * 60 + 30) * 60_000).toISOString();
+    expect(
+      checkMissedWindow({ cadence: cadence('every 4h', 60), agentDisplayName: 'x', runStarts: [lastRun], now: MON_10 }),
+    ).toBeNull();
+    // Last run 5h30m ago -> outside 4h+60m window -> missed.
+    const old = new Date(MON_10.getTime() - (5 * 60 + 30) * 60_000).toISOString();
+    expect(
+      checkMissedWindow({ cadence: cadence('every 4h', 60), agentDisplayName: 'x', runStarts: [old], now: MON_10 }),
+    ).not.toBeNull();
+  });
+
+  it('missed-window dedup key is per (agent, machine, window)', () => {
+    const a = checkMissedWindow({ cadence: cadence('daily 03:00', 60), agentDisplayName: 'x', runStarts: [], now: MON_10 })!;
+    expect(a.dedupKey).toContain('missed_window:fp1:m1:');
+  });
+});
+
+describe('lastExpectedFire DST safety', () => {
+  it('uses calendar step-back so the wall-clock time is preserved (no ms drift)', () => {
+    // Across a spring-forward Sunday (US DST 2026-03-08), a Monday check of
+    // "weekdays 09:00" must land on Friday 09:00 local, not 08:00/10:00.
+    const monAfterDst = new Date(2026, 2, 9, 8, 30, 0); // Mon 2026-03-09 08:30 local
+    const fire = lastExpectedFire(parseExpect('weekdays 09:00'), monAfterDst)!;
+    expect(fire.getDay()).toBe(5); // Friday
+    expect(fire.getHours()).toBe(9); // wall-clock preserved through the DST Sunday
+    expect(fire.getMinutes()).toBe(0);
+  });
 });
 
 describe('checkTokenSpike', () => {

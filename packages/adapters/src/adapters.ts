@@ -82,7 +82,7 @@ export const foundryAdapter: Adapter<FoundryConfig> = async (config, ctx) => {
   const apiVersion = config.apiVersion ?? 'v1';
   let after: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const url = `${config.endpoint.replace(/\/$/, '')}/assistants?api-version=${apiVersion}&limit=100${after ? `&after=${after}` : ''}`;
+    const url = `${config.endpoint.replace(/\/$/, '')}/assistants?api-version=${apiVersion}&limit=100${after ? `&after=${encodeURIComponent(after)}` : ''}`;
     const res = await ctx.fetch(url, { headers: { authorization: `Bearer ${token}` } });
     if (res.status === 401 || res.status === 403) {
       throw new ConnectorAuthError('foundry', `authentication failed (${res.status})`,
@@ -127,7 +127,7 @@ export const vertexAdapter: Adapter<VertexConfig> = async (config, ctx) => {
   const base = `https://${config.location}-aiplatform.googleapis.com/v1beta1/projects/${config.projectId}/locations/${config.location}/reasoningEngines`;
   let pageToken: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
-    const res = await ctx.fetch(`${base}?pageSize=100${pageToken ? `&pageToken=${pageToken}` : ''}`, {
+    const res = await ctx.fetch(`${base}?pageSize=100${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ''}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     if (res.status === 401 || res.status === 403) {

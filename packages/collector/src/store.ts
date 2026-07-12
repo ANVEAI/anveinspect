@@ -56,9 +56,12 @@ export class FleetStore {
          VALUES (@id, @agentFingerprint, @machineId, @startedAt, @endedAt, @status,
            @tokens, @tools, @models, @clientVersion)
          ON CONFLICT(id) DO UPDATE SET
-           ended_at = excluded.ended_at,
-           status = excluded.status,
-           tokens_by_model = excluded.tokens_by_model,
+           ended_at = COALESCE(excluded.ended_at, runs.ended_at),
+           -- never regress a resolved status back to unknown_end on a degraded rescan
+           status = CASE WHEN excluded.status = 'unknown_end' AND runs.status != 'unknown_end'
+                         THEN runs.status ELSE excluded.status END,
+           -- never overwrite previously-extracted tokens with NULL (schema drift / truncated tail)
+           tokens_by_model = COALESCE(excluded.tokens_by_model, runs.tokens_by_model),
            tool_call_counts = excluded.tool_call_counts`,
       )
       .run({

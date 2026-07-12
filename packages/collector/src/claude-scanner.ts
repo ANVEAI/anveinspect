@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, basename } from 'node:path';
 import { homedir, hostname, userInfo } from 'node:os';
@@ -50,6 +50,7 @@ interface SessionAcc {
   models: Set<string>;
   sawSummaryOnly: boolean;
   lineCount: number;
+  corruptLines: number;
   endedCleanly: boolean;
 }
 
@@ -61,8 +62,47 @@ export function machineLabel(): string {
   return hostname().replace(/\.local$/, '');
 }
 
+/**
+ * Consume the hook spool (~/.anveinspect/spool/events.jsonl) into a
+ * sessionId -> trigger map. The plugin's fleet-emit records the real trigger
+ * source (cron/CI/interactive) live; the JSONL scan alone cannot tell them
+ * apart historically, so hooks are the authoritative trigger signal. Prunes
+ * events older than 14 days so the spool never grows unbounded.
+ */
+export function consumeSpool(spoolPath = join(homedir(), '.anveinspect', 'spool', 'events.jsonl')): Map<string, TriggerSource> {
+  const map = new Map<string, TriggerSource>();
+  if (!existsSync(spoolPath)) return map;
+  let raw: string;
+  try {
+    raw = readFileSync(spoolPath, 'utf8');
+  } catch {
+    return map;
+  }
+  const cutoff = Date.now() - 14 * 86_400_000;
+  const kept: string[] = [];
+  const rank: Record<string, number> = { scheduled: 4, ci: 3, subagent: 2, hook: 1, interactive: 0, unknown: 0 };
+  for (const line of raw.split('\n')) {
+    if (!line.trim()) continue;
+    let ev: any;
+    try { ev = JSON.parse(line); } catch { continue; }
+    if (ev.ts && Date.parse(ev.ts) >= cutoff) kept.push(line);
+    if (!ev.sessionId || !ev.trigger) continue;
+    // most-specific trigger wins for a session (a session seen as cron stays cron)
+    const prev = map.get(ev.sessionId);
+    if (!prev || (rank[ev.trigger] ?? 0) > (rank[prev] ?? 0)) map.set(ev.sessionId, ev.trigger);
+  }
+  // prune: rewrite only kept (recent) lines; best-effort, never fatal
+  try {
+    if (kept.length < raw.split('\n').filter((l) => l.trim()).length) {
+      writeFileSync(spoolPath, kept.length ? kept.join('\n') + '\n' : '');
+    }
+  } catch { /* prune failure is harmless */ }
+  return map;
+}
+
 export function scanClaudeProjects(root = join(homedir(), '.claude', 'projects')): ScanResult {
   const result: ScanResultBuilder = new ScanResultBuilder();
+  result.triggerBySession = consumeSpool();
   if (!existsSync(root)) return result.finish();
   for (const projectDir of readdirSync(root)) {
     const dir = join(root, projectDir);
@@ -122,6 +162,7 @@ interface PendingFile {
 
 class ScanResultBuilder {
   pending: PendingFile[] = [];
+  triggerBySession: Map<string, TriggerSource> = new Map();
 
   finish(): ScanResult {
     // Synchronous streaming keeps the CLI dependency-free; files are small (<50MB).
@@ -135,13 +176,25 @@ class ScanResultBuilder {
     const seenUsage = new Set<string>();
 
     for (const { path, projectDir, parentSessionId, agentId, agentType } of this.pending) {
+      // stat once, up front — tolerate a file deleted between readdir and now
+      let mtimeIso: string;
+      try {
+        mtimeIso = statSync(path).mtime.toISOString();
+      } catch {
+        continue; // transcript vanished mid-scan; skip, never crash the tick
+      }
       const acc = accumulateFileSync(path, seenUsage);
-      if (!acc || acc.lineCount === 0 || acc.sawSummaryOnly) continue;
-      linesSkipped += 0;
+      if (!acc) { linesSkipped += 1; continue; }
+      if (acc.lineCount === 0 || acc.sawSummaryOnly) continue;
+      linesSkipped += acc.corruptLines;
 
       const isSubagent = parentSessionId !== undefined;
       const project = resolveProjectIdentity(acc.cwd, projectDir);
-      const trigger: TriggerSource = isSubagent ? 'subagent' : classifyTrigger(acc);
+      // hooks (spool) are the authoritative trigger signal; JSONL alone can't
+      // distinguish cron from interactive historically
+      const trigger: TriggerSource = isSubagent
+        ? 'subagent'
+        : this.triggerBySession.get(acc.sessionId) ?? classifyTrigger(acc);
       const identity = {
         vendor: 'claude_code' as const,
         projectIdentity: project.identity,
@@ -150,7 +203,7 @@ class ScanResultBuilder {
         triggerSource: trigger,
       };
       const fp = agentFingerprint(identity);
-      const startedAt = acc.firstTs ?? new Date(statSync(path).mtime).toISOString();
+      const startedAt = acc.firstTs ?? mtimeIso;
       const endedAt = acc.lastTs;
       const existing = agents.get(fp);
       const lastRun = endedAt ?? startedAt;
@@ -217,6 +270,7 @@ function accumulateFileSync(path: string, seenUsage: Set<string>): SessionAcc | 
     models: new Set(),
     sawSummaryOnly: true,
     lineCount: 0,
+    corruptLines: 0,
     endedCleanly: false,
   };
   for (const line of raw.split('\n')) {
@@ -228,6 +282,7 @@ function accumulateFileSync(path: string, seenUsage: Set<string>): SessionAcc | 
     } catch {
       // truncated/corrupt line (crash mid-write) — skip, and if it's the last
       // content we saw, the run stays 'unknown_end'
+      acc.corruptLines += 1;
       continue;
     }
     try {

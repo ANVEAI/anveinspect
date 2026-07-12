@@ -56,18 +56,25 @@ export function lastExpectedFire(parsed: ParsedExpect, now: Date): Date | null {
   if (parsed.kind === 'every') return new Date(now.getTime() - parsed.intervalMs!);
   const candidate = new Date(now);
   candidate.setHours(parsed.hour!, parsed.minute!, 0, 0);
-  const stepBack = (d: Date, days: number) => new Date(d.getTime() - days * 86_400_000);
+  // Step back one CALENDAR day (setDate), re-pinning the wall-clock time, so DST
+  // transitions never shift the expected fire time by an hour (ms arithmetic would).
+  const stepBack = (d: Date): Date => {
+    const n = new Date(d);
+    n.setDate(n.getDate() - 1);
+    n.setHours(parsed.hour!, parsed.minute!, 0, 0);
+    return n;
+  };
   if (parsed.kind === 'daily') {
-    return candidate > now ? stepBack(candidate, 1) : candidate;
+    return candidate > now ? stepBack(candidate) : candidate;
   }
   if (parsed.kind === 'weekdays') {
-    let c = candidate > now ? stepBack(candidate, 1) : candidate;
-    while (c.getDay() === 0 || c.getDay() === 6) c = stepBack(c, 1);
+    let c = candidate > now ? stepBack(candidate) : candidate;
+    while (c.getDay() === 0 || c.getDay() === 6) c = stepBack(c);
     return c;
   }
   // weekly
   let c = candidate;
-  while (c.getDay() !== parsed.dow! || c > now) c = stepBack(c, 1);
+  while (c.getDay() !== parsed.dow! || c > now) c = stepBack(c);
   return c;
 }
 
@@ -86,11 +93,20 @@ export function checkMissedWindow(input: CheckInput): Alert | null {
   const parsed = parseExpect(cadence.expect);
   const expected = lastExpectedFire(parsed, now);
   if (!expected) return null;
-  const graceEnd = expected.getTime() + cadence.graceMinutes * 60_000;
-  if (now.getTime() <= graceEnd) return null; // still within grace
+  const graceMs = cadence.graceMinutes * 60_000;
+  let windowStart: number;
+  if (parsed.kind === 'every') {
+    // interval cadence: missed only if no run in the last interval + grace.
+    // Grace is baked into the window (the fixed-time early-return doesn't apply).
+    windowStart = now.getTime() - parsed.intervalMs! - graceMs;
+  } else {
+    // fixed-time cadence: too early to call it missed until expected + grace passes
+    if (now.getTime() <= expected.getTime() + graceMs) return null;
+    windowStart = expected.getTime();
+  }
   const ranInWindow = runStarts.some((iso) => {
     const t = Date.parse(iso);
-    return t >= expected.getTime() && t <= now.getTime();
+    return t >= windowStart && t <= now.getTime();
   });
   if (ranInWindow) return null;
   const overdueMin = Math.round((now.getTime() - expected.getTime()) / 60_000);
@@ -103,7 +119,7 @@ export function checkMissedWindow(input: CheckInput): Alert | null {
     reason: `${input.agentDisplayName} missed ${cadence.expect} window — ${overdue} overdue`,
     // one alert per expected-fire window: acking never re-fires it; a NEW missed
     // window (different expected time) produces a new key and does fire
-    dedupKey: `missed_window:${cadence.agentFingerprint}:${expected.toISOString()}`,
+    dedupKey: `missed_window:${cadence.agentFingerprint}:${cadence.machineId}:${expected.toISOString()}`,
     createdAt: now.toISOString(),
     ackedAt: null,
     snoozedUntil: null,
@@ -138,7 +154,7 @@ export function checkTokenSpike(
     reason: `${agentDisplayName} token spike — ${(latest.total / median).toFixed(1)}x trailing median (${fmtTokens(latest.total)} vs ${fmtTokens(median)})`,
     // keyed to the triggering run: a genuinely new spiking run re-fires; the
     // same run never re-fires, even after ack
-    dedupKey: `token_spike:${agentFingerprint}:${latest.startedAt}`,
+    dedupKey: `token_spike:${agentFingerprint}:${machineId}:${latest.startedAt}`,
     createdAt: now.toISOString(),
     ackedAt: null,
     snoozedUntil: null,

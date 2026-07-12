@@ -52,8 +52,8 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
               (SELECT COUNT(*) FROM runs r WHERE r.agent_fingerprint = a.fingerprint) AS run_count,
               (SELECT r.status FROM runs r WHERE r.agent_fingerprint = a.fingerprint ORDER BY r.started_at DESC LIMIT 1) AS last_status,
               (SELECT r.machine_id FROM runs r WHERE r.agent_fingerprint = a.fingerprint ORDER BY r.started_at DESC LIMIT 1) AS m_id,
-              (SELECT c.expect FROM cadences c WHERE c.agent_fingerprint = a.fingerprint LIMIT 1) AS cadence,
-              (SELECT c.declared FROM cadences c WHERE c.agent_fingerprint = a.fingerprint LIMIT 1) AS cadence_declared
+              (SELECT c.expect FROM cadences c WHERE c.agent_fingerprint = a.fingerprint ORDER BY c.declared DESC, c.updated_at DESC LIMIT 1) AS cadence,
+              (SELECT c.declared FROM cadences c WHERE c.agent_fingerprint = a.fingerprint ORDER BY c.declared DESC, c.updated_at DESC LIMIT 1) AS cadence_declared
        FROM agents a ORDER BY a.last_run_at DESC`,
     )
     .all() as any[];
@@ -234,7 +234,7 @@ export function runCheck(dbPath: string, now = new Date()): { newAlerts: Alert[]
     const openAlerts = db
       .prepare(
         `SELECT al.*, a.display_name FROM alerts al LEFT JOIN agents a ON a.fingerprint = al.agent_fingerprint
-         WHERE al.acked_at IS NULL AND (al.snoozed_until IS NULL OR al.snoozed_until > datetime('now'))
+         WHERE al.acked_at IS NULL AND (al.snoozed_until IS NULL OR julianday(al.snoozed_until) <= julianday('now'))
          ORDER BY al.created_at DESC`,
       )
       .all() as any[];
@@ -263,7 +263,7 @@ export function fleetStatus(db: Database.Database) {
     .prepare(
       `SELECT al.id, al.kind, al.reason, al.created_at, a.display_name
        FROM alerts al LEFT JOIN agents a ON a.fingerprint = al.agent_fingerprint
-       WHERE al.acked_at IS NULL AND (al.snoozed_until IS NULL OR al.snoozed_until > datetime('now'))
+       WHERE al.acked_at IS NULL AND (al.snoozed_until IS NULL OR julianday(al.snoozed_until) <= julianday('now'))
        ORDER BY al.created_at DESC`,
     )
     .all() as any[];

@@ -206,13 +206,20 @@ try {
       const sub = args[1] ?? 'status';
       if (sub === 'install') {
         mkdirSync(dirname(PLIST_PATH), { recursive: true });
+        // Single-quote the paths for the shell (handles spaces/&/backticks) THEN
+        // XML-escape the whole command string. A silently-dead scheduler is the
+        // worst failure mode for a watchdog, so both layers must be correct.
+        const sh = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+        const xml = (s: string) =>
+          s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const command = `cd ${sh(REPO_ROOT)} && npx tsx packages/collector/src/cli.ts tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`;
         const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>com.anveinspect.tick</string>
   <key>ProgramArguments</key><array>
     <string>/bin/zsh</string><string>-lc</string>
-    <string>cd ${REPO_ROOT} &amp;&amp; npx tsx packages/collector/src/cli.ts tick >> ${homedir()}/.anveinspect/tick.log 2>&amp;1</string>
+    <string>${xml(command)}</string>
   </array>
   <key>StartInterval</key><integer>900</integer>
   <key>RunAtLoad</key><true/>
