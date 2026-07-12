@@ -1,0 +1,6 @@
+{
+  "name": "fleetdeck",
+  "description": "Agent fleet collector — inventory, last-run, token usage, and silent-failure detection for your Claude Code agents (working codename)",
+  "version": "0.1.0",
+  "author": { "name": "ANVE" }
+}

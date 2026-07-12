@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+/**
+ * fleet-emit <kind> — hook sink. Reads the hook JSON payload from stdin and
+ * appends a normalized, data-boundary-safe event to the local spool.
+ *
+ *   claude hook ──▶ fleet-emit ──▶ ~/.fleetdeck/spool/events.jsonl ──▶ collector drain
+ *
+ * Rules (from hooks research + design doc):
+ * - observation-only: ALWAYS exit 0, never block the agent
+ * - keep only data-boundary fields (never prompts, tool args, file contents)
+ * - record $PPID + tty for crash detection (PID liveness) and trigger
+ *   classification (tty '??' = cron/launchd; FLEETDECK_TRIGGER env wins)
+ */
+const { appendFileSync, mkdirSync } = require('node:fs');
+const { execSync } = require('node:child_process');
+const { join } = require('node:path');
+const { homedir } = require('node:os');
+
+function main() {
+  const kind = process.argv[2] || 'unknown';
+  let payload = {};
+  try {
+    const raw = require('node:fs').readFileSync(0, 'utf8');
+    if (raw.trim()) payload = JSON.parse(raw);
+  } catch { /* unreadable payload: still emit the event skeleton */ }
+
+  let tty = null;
+  try {
+    tty = execSync(`ps -o tty= -p ${process.ppid}`, { timeout: 1500 }).toString().trim();
+  } catch { /* ps unavailable: leave null */ }
+
+  const trigger =
+    process.env.FLEETDECK_TRIGGER ? process.env.FLEETDECK_TRIGGER
+    : process.env.CI || process.env.GITHUB_ACTIONS ? 'ci'
+    : process.env.CLAUDE_CODE_CHILD_SESSION === '1' ? 'subagent'
+    : tty === '??' ? 'scheduled'
+    : 'interactive';
+
+  const event = {
+    kind,
+    ts: new Date().toISOString(),
+    sessionId: payload.session_id ?? null,
+    transcriptPath: payload.transcript_path ?? null,
+    cwd: payload.cwd ?? null,
+    agentId: payload.agent_id ?? null,
+    agentType: payload.agent_type ?? null,
+    toolName: payload.tool_name ?? null,       // name only, never tool_input
+    errorType: payload.error_type ?? null,      // StopFailure classifier
+    endReason: payload.reason ?? null,          // SessionEnd reason
+    startSource: payload.source ?? null,        // SessionStart source
+    claudePid: process.ppid,
+    tty,
+    trigger,
+    remote: process.env.CLAUDE_CODE_REMOTE === 'true',
+  };
+
+  try {
+    const spoolDir = join(homedir(), '.fleetdeck', 'spool');
+    mkdirSync(spoolDir, { recursive: true });
+    appendFileSync(join(spoolDir, 'events.jsonl'), JSON.stringify(event) + '\n');
+  } catch { /* spool failure must never break the agent */ }
+}
+
+try { main(); } catch { /* never block */ }
+process.exit(0);

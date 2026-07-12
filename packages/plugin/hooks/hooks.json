@@ -1,0 +1,88 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit session_start"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit session_end"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit subagent_start"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit subagent_stop"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit turn_end"
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit stop_failure"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 5,
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/bin/fleet-emit tool_use"
+          }
+        ]
+      }
+    ]
+  }
+}
