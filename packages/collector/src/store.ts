@@ -11,6 +11,8 @@ export class FleetStore {
     this.db = new Database(path);
     this.db.pragma('journal_mode = WAL');
     this.db.exec(DDL);
+    // additive migrations (idempotent — column-exists errors are expected)
+    try { this.db.exec(`ALTER TABLE alerts ADD COLUMN delivered_at TEXT`); } catch { /* already migrated */ }
   }
 
   upsertMachine(m: Machine): void {

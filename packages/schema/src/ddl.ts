@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS alerts (
   reason TEXT NOT NULL,
   created_at TEXT NOT NULL,
   acked_at TEXT,
-  snoozed_until TEXT
+  snoozed_until TEXT,
+  delivered_at TEXT                   -- exactly-once webhook delivery marker
 );
 
 CREATE TABLE IF NOT EXISTS connector_syncs (

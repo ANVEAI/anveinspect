@@ -60,3 +60,14 @@ All tools mirror the CLI: `npx tsx "${CLAUDE_PLUGIN_ROOT}/../collector/src/cli.t
 - `claude -p --bare` skips hooks entirely — scheduled invocations must pass
   `--settings` or `--plugin-dir` explicitly or their runs are invisible to hooks
   (the JSONL scan still catches them retroactively).
+
+## Alert delivery & scheduling
+
+- Slack delivery: user adds `{"slackWebhookUrl":"https://hooks.slack.com/..."}` to
+  `~/.anveinspect/notify.json`. Delivery is exactly-once per alert; failures retry
+  on the next tick and are never silently lost.
+- Standing watch: `anveinspect schedule install` writes a launchd job (every 15
+  minutes: scan -> check -> deliver), then the USER activates it with
+  `launchctl load ~/Library/LaunchAgents/com.anveinspect.tick.plist`. Never
+  activate it yourself without the user's explicit go-ahead — it is persistent
+  machine configuration. `anveinspect schedule status` shows both halves.

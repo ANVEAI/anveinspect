@@ -3,3 +3,4 @@ export * from './store.js';
 export * from './cadence.js';
 export * from './queries.js';
 export * from './connectors.js';
+export * from './notify.js';

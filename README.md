@@ -74,3 +74,11 @@ identical numbers everywhere.
 - SessionEnd is graceful-only: crash detection = heartbeat ledger + PID liveness
   (fleet-emit records claudePid) + transcript reconciliation.
 - Claude Code cleans JSONL after ~30 days — scan early, persist everything.
+
+## Alert delivery (local pager mode)
+
+`anveinspect tick` = scan → check → deliver. Slack webhook in
+`~/.anveinspect/notify.json`; exactly-once delivery with retry-on-failure.
+`anveinspect schedule install` writes a launchd plist (15-min interval);
+activate with `launchctl load`. Inline Slack Ack buttons arrive with the
+hosted interactivity endpoint (Slice 4, demand-gated).

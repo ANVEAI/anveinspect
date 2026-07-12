@@ -2,6 +2,25 @@ import { FleetStore } from './store.js';
 import { scanClaudeProjects, machineId, machineLabel } from './claude-scanner.js';
 import { DEFAULT_DB, openDb, listAgents, agentDetail, declareCadence, runCheck, fleetStatus, ackAlert } from './queries.js';
 import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFile, CONNECTORS_PATH } from './connectors.js';
+import { deliverAlerts, loadNotifyConfig, NOTIFY_PATH } from './notify.js';
+import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { join, dirname, resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+const PLIST_PATH = join(homedir(), 'Library', 'LaunchAgents', 'com.anveinspect.tick.plist');
+const CLI_PATH = fileURLToPath(import.meta.url);
+const REPO_ROOT = resolve(dirname(CLI_PATH), '..', '..', '..');
+
+async function notifyAndReport(): Promise<string[]> {
+  const outcome = await deliverAlerts(DEFAULT_DB);
+  if (outcome.skipped === 'no_webhook') {
+    return [`delivery skipped — no slackWebhookUrl in ${NOTIFY_PATH}`];
+  }
+  const lines = [`delivered ${outcome.delivered.length} alert(s) to Slack`];
+  for (const f of outcome.failed) lines.push(`  delivery FAILED for ${f.id}: ${f.error} (will retry next tick)`);
+  return lines;
+}
 
 /**
  * anveinspect CLI — the surface Claude's plugin skills operate.
@@ -142,6 +161,70 @@ try {
       out({ acked: ok, id }, () => (ok ? `acked ${id}` : `no open alert with id ${id}`));
       break;
     }
+    case 'tick': {
+      // scheduled entrypoint: refresh, evaluate, deliver — one command for launchd
+      const result = scanClaudeProjects();
+      const store = new FleetStore(DEFAULT_DB);
+      store.upsertMachine({ id: machineId(), label: machineLabel(), lastHeartbeatAt: new Date().toISOString() });
+      const tx = store.db.transaction(() => {
+        for (const a of result.agents) store.upsertAgent(a);
+        for (const r of result.runs) store.upsertRun(r);
+        for (const s of result.spawns) store.insertSpawn(s);
+      });
+      tx();
+      store.close();
+      const { newAlerts, openAlerts } = runCheck(DEFAULT_DB);
+      const deliveryLines = await notifyAndReport();
+      out({ scanned: result.runs.length, newAlerts: newAlerts.length, openAlerts: openAlerts.length, delivery: deliveryLines }, () =>
+        [`tick @ ${new Date().toISOString()} — ${result.runs.length} runs scanned, ${newAlerts.length} new / ${openAlerts.length} open alerts`, ...deliveryLines].join('\n'),
+      );
+      break;
+    }
+    case 'notify': {
+      if (args[1] !== 'deliver') throw new Error('usage: anveinspect notify deliver');
+      const lines = await notifyAndReport();
+      out({ lines }, () => lines.join('\n'));
+      break;
+    }
+    case 'schedule': {
+      const sub = args[1] ?? 'status';
+      if (sub === 'install') {
+        mkdirSync(dirname(PLIST_PATH), { recursive: true });
+        const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.anveinspect.tick</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/zsh</string><string>-lc</string>
+    <string>cd ${REPO_ROOT} &amp;&amp; npx tsx packages/collector/src/cli.ts tick >> ${homedir()}/.anveinspect/tick.log 2>&amp;1</string>
+  </array>
+  <key>StartInterval</key><integer>900</integer>
+  <key>RunAtLoad</key><true/>
+</dict></plist>
+`;
+        writeFileSync(PLIST_PATH, plist);
+        out({ plist: PLIST_PATH }, () =>
+          [
+            `wrote ${PLIST_PATH} (every 15 minutes: scan -> check -> deliver)`,
+            `activate with:   launchctl load ${PLIST_PATH}`,
+            `logs:            ~/.anveinspect/tick.log`,
+          ].join('\n'),
+        );
+      } else if (sub === 'uninstall') {
+        if (existsSync(PLIST_PATH)) unlinkSync(PLIST_PATH);
+        out({ removed: PLIST_PATH }, () => `removed ${PLIST_PATH}. If it was loaded: launchctl unload ${PLIST_PATH}`);
+      } else {
+        const installed = existsSync(PLIST_PATH);
+        const cfg = loadNotifyConfig();
+        out({ installed, plist: PLIST_PATH, webhookConfigured: Boolean(cfg.slackWebhookUrl) }, () =>
+          [
+            installed ? `schedule installed at ${PLIST_PATH}` : `schedule not installed — run "anveinspect schedule install"`,
+            cfg.slackWebhookUrl ? 'Slack webhook: configured' : `Slack webhook: NOT configured — add {"slackWebhookUrl":"https://hooks.slack.com/..."} to ${NOTIFY_PATH}`,
+          ].join('\n'),
+        );
+      }
+      break;
+    }
     case 'connectors': {
       const sub = args[1] ?? 'status';
       if (sub === 'sync') {
@@ -182,7 +265,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors)`);
+      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);
