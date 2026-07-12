@@ -36,3 +36,12 @@ what's running, why, agent insights, and control, in a single dashboard.
   panel with stats (runs/spawns/tokens), cadence + declare prompt, token-trend
   sparkline, run-history timeline with status dots. /api/agent endpoint.
 - verified live (voice-forms: 30 runs, 1338 spawns, 5.8M tok, run history). 62 green.
+
+### Cycle 3 (cost + activity analytics) — DONE
+- Wave 3 (2 Claude workers). Built pricing.ts (editable ~/.anveinspect/pricing.json,
+  default estimates, opus>sonnet>fable~haiku) + analytics.ts (cost by model/vendor/
+  agent, busiest hours, failure bursts; honest priced/unpriced/tokenless coverage).
+- Wired: /api/analytics, CLI `costs`, fleet_analytics MCP tool (15 tools), Overview
+  cost section (KPI + cost-by-model bars + clickable most-expensive-agents + hours).
+- verified live: est $9.2k/30d (opus 96%, voice-forms $7.3k), busiest 2am, 0 bursts.
+  66 tests green (4 new). Dollars labeled estimates; token counts exact.

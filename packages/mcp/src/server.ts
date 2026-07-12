@@ -25,6 +25,7 @@ import {
   lineageSummary,
   topLineageRoots,
   lineageTree,
+  computeAnalytics,
 } from '@anveinspect/collector';
 
 /**
@@ -404,6 +405,25 @@ server.registerTool(
           (summary.widestFanout ? `Widest: ${summary.widestFanout.agentName} spawned ${summary.widestFanout.children}. ` : '') +
           `Top roots: ${roots.slice(0, 5).map((r) => `${r.agentName} (${r.descendantCount})`).join(', ')}.`,
       );
+    }),
+);
+
+server.registerTool(
+  'fleet_analytics',
+  {
+    title: 'Cost & activity analytics',
+    description:
+      'Estimated 30-day cost (from an editable pricing file) broken down by model, by platform, and by agent, plus busiest hours and failure bursts. Token counts are exact; dollars are estimates and every result reports priced/unpriced/tokenless run coverage. Use for "what is my fleet costing / what is most expensive / when is it busiest".',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () =>
+    guard(() => {
+      const db = openDb();
+      const a = computeAnalytics(db);
+      db.close();
+      const top = a.topCostAgents.slice(0, 3).map((x) => `${x.name} $${x.usd.toFixed(2)}`).join(', ');
+      return ok(a, `Estimated 30d cost $${a.estimatedCostUsd.toFixed(2)} (${a.ratesSource} rates; ${a.tokenlessRuns} runs unpriced). Top: ${top}. Busiest hour: ${a.busiestHours.slice().sort((x,y)=>y.runs-x.runs)[0]?.hour}:00.`);
     }),
 );
 

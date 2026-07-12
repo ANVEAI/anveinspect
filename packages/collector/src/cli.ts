@@ -8,6 +8,8 @@ import { buildReport } from './report.js';
 import { computeInsights } from './insights.js';
 import { onboardReport } from './onboard.js';
 import { lineageSummary, topLineageRoots, lineageTree } from './lineage.js';
+import { computeAnalytics } from './analytics.js';
+import { fmtUsd } from './pricing.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -297,6 +299,24 @@ try {
       if (json) console.log(JSON.stringify({ onboarding: report, pulse: st.pulse, connectors: syncOutcomes }, null, 2));
       break;
     }
+    case 'costs': {
+      const db = openDb();
+      const a = computeAnalytics(db);
+      db.close();
+      out(a, () =>
+        [
+          `estimated 30d cost: ${fmtUsd(a.estimatedCostUsd)} (${a.ratesSource} rates; ${a.pricedRuns} priced, ${a.unpricedRuns} unknown-model, ${a.tokenlessRuns} tokens-unavailable)`,
+          'by model:',
+          ...a.costByModel.map((m) => `  ${m.model.padEnd(30)} ${fmtUsd(m.usd)}`),
+          'most expensive agents:',
+          ...a.topCostAgents.slice(0, 8).map((x) => `  ${x.name.padEnd(28)} ${fmtUsd(x.usd)} (${x.runs} runs)`),
+          `busiest hours (local): ${a.busiestHours.slice().sort((x, y) => y.runs - x.runs).slice(0, 3).map((h) => `${h.hour}:00 (${h.runs})`).join(', ')}`,
+          a.failureBursts.length ? `failure bursts: ${a.failureBursts.map((b) => `${b.agent} ×${b.failures}`).join(', ')}` : 'no failure bursts',
+          '(dollars are estimates from editable ~/.anveinspect/pricing.json; token counts are exact)',
+        ].join('\n'),
+      );
+      break;
+    }
     case 'lineage': {
       const db = openDb();
       if (args[1] === 'tree' && args[2]) {
@@ -376,7 +396,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
+      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, costs, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);

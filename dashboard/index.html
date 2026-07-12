@@ -231,15 +231,16 @@ const fmt = n => n==null?null : n>=1e6?(n/1e6).toFixed(1)+'M' : n>=1e3?Math.roun
 const rel = iso => { if(!iso) return '—'; const s=(Date.now()-Date.parse(iso))/1000;
   if(s<3600)return Math.max(1,Math.round(s/60))+'m ago'; if(s<86400)return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; };
 
-let FLEET=null, INSIGHTS=null, LINEAGE=null;
+let FLEET=null, INSIGHTS=null, LINEAGE=null, ANALYTICS=null;
 const state = { agentSearch:'', agentVendor:'all', agentStatus:'all', sortKey:'lastRunAt', sortDir:-1 };
 
 async function load(){
-  const [f,i] = await Promise.all([
+  const [f,i,an] = await Promise.all([
     fetch('/api/fleet').then(r=>r.json()),
     fetch('/api/insights').then(r=>r.json()).catch(()=>null),
+    fetch('/api/analytics').then(r=>r.json()).catch(()=>null),
   ]);
-  FLEET=f; INSIGHTS=i;
+  FLEET=f; INSIGHTS=i; ANALYTICS=an;
   const p=f.pulse;
   $('#b-agents').textContent=p.total;
   const attnBadge=$('#b-attn'); attnBadge.textContent=p.openAlerts+p.stale; attnBadge.classList.toggle('hot',p.openAlerts>0);
@@ -284,8 +285,9 @@ function renderOverview(page){
   kpis.appendChild(kpiTile('Total agents', p.total, `${p.platforms} platforms · ${p.machines} machine${p.machines===1?'':'s'}`));
   kpis.appendChild(kpiTile('Open alerts', p.openAlerts, p.openAlerts?'needs attention':'all clear', p.openAlerts?'crit':''));
   kpis.appendChild(kpiTile('Stale agents', p.stale, p.stale?'quiet >7 days':'none', p.stale?'warn':''));
-  kpis.appendChild(kpiTile('Tokens · 30d', fmt(totalTok)??'—',
-    wow&&wow.deltaPct!=null?`<span class="${wow.deltaPct<=0?'up':'down'}">${wow.deltaPct>0?'+':''}${wow.deltaPct}%</span> vs last week`:'usage', ''));
+  const cost=ANALYTICS?ANALYTICS.estimatedCostUsd:null;
+  kpis.appendChild(kpiTile('Est. cost · 30d', cost==null?'—':fmtUsd(cost),
+    ANALYTICS?`${ANALYTICS.ratesSource} rates · ${ANALYTICS.tokenlessRuns} runs unpriced`:'estimated'));
   page.appendChild(kpis);
 
   // Trend + platform breakdown
@@ -295,10 +297,41 @@ function renderOverview(page){
   grid.appendChild(platformCard());
   page.appendChild(grid);
 
-  // Top agents + attention summary
+  // Cost breakdown
+  if(ANALYTICS && ANALYTICS.pricedRuns>0){
+    const st3=el('div','section-title'); st3.textContent='Estimated cost · 30d (token counts are exact; dollars are estimates)'; page.appendChild(st3);
+    const cg=el('div','grid2');
+    cg.appendChild(costByModelCard());
+    cg.appendChild(topCostAgentsCard());
+    page.appendChild(cg);
+    if(ANALYTICS.busiestHours){ const sh=el('div','section-title'); sh.textContent='Activity by hour of day'; page.appendChild(sh); page.appendChild(busiestHoursCard()); }
+  }
+
+  // Top agents
   const st2=el('div','section-title'); st2.textContent='Highest token consumers · 30d'; page.appendChild(st2);
   page.appendChild(topAgentsCard());
 }
+function costByModelCard(){
+  const c=el('div','card'); c.innerHTML=`<div class="hd"><h3>Cost by model</h3><span class="meta">${ANALYTICS.ratesSource} rates</span></div>`;
+  const bd=el('div','bd'); const max=Math.max(0.0001,...ANALYTICS.costByModel.map(m=>m.usd));
+  ANALYTICS.costByModel.forEach(m=>{const row=el('div','pbar');row.innerHTML=`<span class="pv" title="${esc(m.model)}">${esc(m.model.replace('claude-','').replace(/-\d+$/,''))}</span><span class="track"><span class="fill" style="width:${Math.round(m.usd/max*100)}%"></span></span><span class="pn">${fmtUsd(m.usd)}</span>`;bd.appendChild(row);});
+  c.appendChild(bd); return c;
+}
+function topCostAgentsCard(){
+  const c=el('div','card'); c.innerHTML=`<div class="hd"><h3>Most expensive agents</h3></div>`;
+  const bd=el('div','bd'); bd.style.padding='0'; const t=el('table');
+  t.innerHTML='<thead><tr><th>Agent</th><th>Runs</th><th>Est. cost</th></tr></thead>';
+  const tb=el('tbody');
+  ANALYTICS.topCostAgents.slice(0,8).forEach(a=>{const tr=el('tr');tr.style.cursor='pointer';tr.onclick=()=>openAgent(a.name);tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(a.name)}</span><span class="vtag">${esc(a.vendor.replace('_',' '))}</span></td><td class="mono-c">${a.runs}</td><td class="mono-c">${fmtUsd(a.usd)}</td>`;tb.appendChild(tr);});
+  t.appendChild(tb); bd.appendChild(t); c.appendChild(bd); return c;
+}
+function busiestHoursCard(){
+  const c=el('div','card'); c.innerHTML=`<div class="hd"><h3>Runs by hour (local)</h3><span class="meta">last 30 days</span></div>`;
+  const bd=el('div','bd'); const chart=el('div','chart'); const max=Math.max(1,...ANALYTICS.busiestHours.map(h=>h.runs));
+  ANALYTICS.busiestHours.forEach(h=>{const bar=el('div','bar');bar.style.height=Math.max(2,Math.round(h.runs/max*130))+'px';if(h.runs===0)bar.dataset.empty='1';bar.addEventListener('mousemove',e=>showTip(e,String(h.hour).padStart(2,'0')+':00',h.runs+' runs'));bar.addEventListener('mouseleave',hideTip);chart.appendChild(bar);});
+  bd.appendChild(chart); const ax=el('div','chart-axis'); ax.innerHTML='<span>00:00</span><span>12:00</span><span>23:00</span>'; bd.appendChild(ax); c.appendChild(bd); return c;
+}
+const fmtUsd=n=>n==null?'—':n>=1000?'$'+(n/1000).toFixed(1)+'k':n>=1?'$'+n.toFixed(2):'$'+n.toFixed(3);
 
 function kpiTile(label,num,delta,cls=''){
   const t=el('div','kpi');
