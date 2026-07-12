@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree } from '@anveinspect/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree, agentDetail } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -61,6 +61,18 @@ const server = createServer((req, res) => {
       const tree = lineageTree(db, runId, 8);
       db.close();
       return tree ? send(200, tree) : send(404, { error: 'no lineage for run ' + runId });
+    }
+    if (req.url?.startsWith('/api/agent')) {
+      const name = new URL(req.url, 'http://x').searchParams.get('name') || '';
+      const db = openDb(DEFAULT_DB);
+      try {
+        const detail = agentDetail(db, name);
+        return send(200, detail);
+      } catch (e) {
+        return send(404, { error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        db.close();
+      }
     }
     if (req.url === '/api/ai' || req.url === '/llms.txt') {
       // AI-discovery surface: full fleet report as markdown for ANY assistant

@@ -24,3 +24,15 @@ what's running, why, agent insights, and control, in a single dashboard.
 - 62 tests green (5 new lineage tests). Worker findings captured for next cycles:
   agent-detail drilldown (CRITICAL), activity timeline, cost-per-platform,
   busiest-hours, failure-clustering, safe local control (tag/group/snooze/retire).
+
+### Cycle 2 (agent detail + lineage hardening) — DONE
+- Wave 2 agents (3 Claude workers + 2 Codex). One worker adversarially probed
+  lineage.ts and found REAL bugs — fixed:
+  * unguarded JSON.parse in tokensOf → crash on malformed tokens (now returns null)
+  * N+1: topLineageRoots/lineageSummary built a full tree per root just to count
+    → replaced with load-edges-once adjacency map + BFS (0.47s on 1335 edges)
+  * per-node child cap (500) so pathological fan-out can't build unbounded tree
+- Built agent-detail drawer: click any agent row (table or top-consumers) → slide-in
+  panel with stats (runs/spawns/tokens), cadence + declare prompt, token-trend
+  sparkline, run-history timeline with status dots. /api/agent endpoint.
+- verified live (voice-forms: 30 runs, 1338 spawns, 5.8M tok, run history). 62 green.

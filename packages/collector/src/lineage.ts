@@ -35,9 +35,47 @@ export interface LineageSummary {
 
 function tokensOf(json: string | null): number | null {
   if (json === null) return null;
-  let t = 0;
-  for (const v of Object.values(JSON.parse(json)) as any[]) t += v.input + v.output;
-  return t;
+  try {
+    let t = 0;
+    for (const v of Object.values(JSON.parse(json)) as any[]) t += v.input + v.output;
+    return t;
+  } catch {
+    return null; // malformed token blob -> unavailable, never crash the tree
+  }
+}
+
+/** Load ALL spawn edges once into a parent→children adjacency map (avoids the
+ *  N+1 of building a full tree per root just to count/measure descendants). */
+function adjacency(db: Database.Database): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const e of db.prepare(`SELECT parent_run_id, child_run_id FROM spawns`).all() as any[]) {
+    const list = m.get(e.parent_run_id);
+    if (list) list.push(e.child_run_id);
+    else m.set(e.parent_run_id, [e.child_run_id]);
+  }
+  return m;
+}
+
+/** Descendant count + subtree depth for a root, via BFS over the edge map. */
+function descendantStats(adj: Map<string, string[]>, root: string): { descendants: number; depth: number } {
+  let descendants = 0;
+  let depth = 1;
+  const seen = new Set<string>([root]);
+  let frontier = [root];
+  while (frontier.length) {
+    const next: string[] = [];
+    for (const node of frontier) {
+      for (const child of adj.get(node) ?? []) {
+        if (seen.has(child)) continue; // cycle guard
+        seen.add(child);
+        descendants += 1;
+        next.push(child);
+      }
+    }
+    if (next.length) depth += 1;
+    frontier = next;
+  }
+  return { descendants, depth };
 }
 
 /** Build the lineage tree rooted at a run id (or the parent of any run id). */
@@ -57,7 +95,9 @@ export function lineageTree(db: Database.Database, rootRunId: string, maxDepth =
     const selfTokens = tokensOf(r.tokens_by_model);
     const children: LineageNode[] = [];
     if (depth < maxDepth) {
-      for (const c of childStmt.all(runId) as any[]) {
+      // cap children per node so a pathological fan-out can't build an unbounded tree
+      const kids = (childStmt.all(runId) as any[]).slice(0, 500);
+      for (const c of kids) {
         const node = build(c.child_run_id, c.confidence, depth + 1, seen);
         if (node) children.push(node);
       }
@@ -86,29 +126,29 @@ export function lineageTree(db: Database.Database, rootRunId: string, maxDepth =
   return build(rootRunId, 1.0, 0, new Set());
 }
 
-/** The top lineage roots (runs that spawned children and are not themselves children). */
+/** The top lineage roots (runs that spawned children and are not themselves children).
+ *  Uses the edge map + BFS (no per-root tree build), then hydrates only the top-N. */
 export function topLineageRoots(db: Database.Database, limit = 20): { runId: string; agentName: string; vendor: string; startedAt: string | null; directChildren: number; descendantCount: number }[] {
-  const roots = db
-    .prepare(
-      `SELECT DISTINCT s.parent_run_id AS run_id FROM spawns s
-       WHERE s.parent_run_id NOT IN (SELECT child_run_id FROM spawns)`,
-    )
-    .all() as any[];
-  const out = roots.map((row) => {
-    const tree = lineageTree(db, row.run_id, 8);
-    const r = db
-      .prepare(`SELECT a.display_name, a.vendor, r.started_at FROM runs r JOIN agents a ON a.fingerprint=r.agent_fingerprint WHERE r.id = ?`)
-      .get(row.run_id) as any;
+  const adj = adjacency(db);
+  const childSet = new Set<string>();
+  for (const kids of adj.values()) for (const c of kids) childSet.add(c);
+  const rootIds = [...adj.keys()].filter((id) => !childSet.has(id));
+  const ranked = rootIds
+    .map((runId) => ({ runId, directChildren: (adj.get(runId) ?? []).length, ...descendantStats(adj, runId) }))
+    .sort((a, b) => b.descendants - a.descendants)
+    .slice(0, limit); // hydrate names only for the top-N (cheap)
+  const nameStmt = db.prepare(`SELECT a.display_name, a.vendor, r.started_at FROM runs r JOIN agents a ON a.fingerprint=r.agent_fingerprint WHERE r.id = ?`);
+  return ranked.map((x) => {
+    const r = nameStmt.get(x.runId) as any;
     return {
-      runId: row.run_id,
-      agentName: r?.display_name ?? row.run_id,
+      runId: x.runId,
+      agentName: r?.display_name ?? x.runId,
       vendor: r?.vendor ?? 'unknown',
       startedAt: r?.started_at ?? null,
-      directChildren: tree?.children.length ?? 0,
-      descendantCount: tree?.descendantCount ?? 0,
+      directChildren: x.directChildren,
+      descendantCount: x.descendants,
     };
   });
-  return out.sort((a, b) => b.descendantCount - a.descendantCount).slice(0, limit);
 }
 
 export function lineageSummary(db: Database.Database): LineageSummary {
@@ -125,10 +165,13 @@ export function lineageSummary(db: Database.Database): LineageSummary {
     const r = db.prepare(`SELECT a.display_name FROM runs r JOIN agents a ON a.fingerprint=r.agent_fingerprint WHERE r.id=?`).get(fanout.parent_run_id) as any;
     widest = { runId: fanout.parent_run_id, agentName: r?.display_name ?? fanout.parent_run_id, children: fanout.n };
   }
-  // depth via bounded sampling of roots (avoids a recursive CTE for portability)
-  for (const root of roots.slice(0, 50)) {
-    const tree = lineageTree(db, root.parent_run_id, 12);
-    const d = depthOf(tree);
+  // depth via edge-map BFS over ALL roots (cheap; no per-root tree build)
+  const adj = adjacency(db);
+  const childSet = new Set<string>();
+  for (const kids of adj.values()) for (const c of kids) childSet.add(c);
+  for (const id of adj.keys()) {
+    if (childSet.has(id)) continue; // only true roots
+    const d = descendantStats(adj, id).depth;
     if (d > maxDepth) maxDepth = d;
   }
   const byVendor = (db
@@ -141,7 +184,3 @@ export function lineageSummary(db: Database.Database): LineageSummary {
   return { totalEdges, rootsWithChildren: roots.length, maxDepth, widestFanout: widest, byVendor };
 }
 
-function depthOf(n: LineageNode | null): number {
-  if (!n || !n.children.length) return 1;
-  return 1 + Math.max(...n.children.map(depthOf));
-}
