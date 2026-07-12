@@ -22,6 +22,9 @@ import {
   buildReport,
   computeInsights,
   onboardReport,
+  lineageSummary,
+  topLineageRoots,
+  lineageTree,
 } from '@anveinspect/collector';
 
 /**
@@ -370,6 +373,38 @@ server.registerTool(
       return fail(err instanceof Error ? err.message : String(err));
     }
   },
+);
+
+server.registerTool(
+  'fleet_lineage',
+  {
+    title: 'Agent lineage',
+    description:
+      'Spawn lineage — what spawned what. With no argument: fleet lineage summary (total edges, roots, max depth, widest fan-out, spawns by platform) + top roots by descendant count. With run_id: the full spawn tree rooted at that run (parent → children with tokens/status). Use to answer "why is this running / what did X spawn / what has the deepest agent chains".',
+    inputSchema: {
+      run_id: z.string().optional().describe('A run id (from fleet_lineage roots or fleet_agent_detail) to expand its spawn tree; omit for the fleet summary'),
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ run_id }) =>
+    guard(() => {
+      const db = openDb();
+      if (run_id) {
+        const tree = lineageTree(db, run_id, 8);
+        db.close();
+        if (!tree) return fail(`No lineage for run "${run_id}". List roots by calling fleet_lineage with no argument.`);
+        return ok(tree, `${tree.agentName}: ${tree.children.length} direct children, ${tree.descendantCount} total descendants, subtree tokens ${tree.subtreeTokens ?? 'unavailable'}.`);
+      }
+      const summary = lineageSummary(db);
+      const roots = topLineageRoots(db, 20);
+      db.close();
+      return ok(
+        { summary, roots },
+        `${summary.totalEdges} spawn edges across ${summary.rootsWithChildren} roots (max depth ${summary.maxDepth}). ` +
+          (summary.widestFanout ? `Widest: ${summary.widestFanout.agentName} spawned ${summary.widestFanout.children}. ` : '') +
+          `Top roots: ${roots.slice(0, 5).map((r) => `${r.agentName} (${r.descendantCount})`).join(', ')}.`,
+      );
+    }),
 );
 
 const transport = new StdioServerTransport();

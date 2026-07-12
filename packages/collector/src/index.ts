@@ -9,3 +9,4 @@ export * from './report.js';
 export * from './codex-scanner.js';
 export * from './onboard.js';
 export * from './cli-credentials.js';
+export * from './lineage.js';

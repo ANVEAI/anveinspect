@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights } from '@anveinspect/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -48,6 +48,19 @@ const server = createServer((req, res) => {
       const insights = computeInsights(db);
       db.close();
       return send(200, insights);
+    }
+    if (req.url === '/api/lineage') {
+      const db = openDb(DEFAULT_DB);
+      const out = { summary: lineageSummary(db), roots: topLineageRoots(db, 25) };
+      db.close();
+      return send(200, out);
+    }
+    if (req.url?.startsWith('/api/lineage/tree')) {
+      const runId = new URL(req.url, 'http://x').searchParams.get('run') || '';
+      const db = openDb(DEFAULT_DB);
+      const tree = lineageTree(db, runId, 8);
+      db.close();
+      return tree ? send(200, tree) : send(404, { error: 'no lineage for run ' + runId });
     }
     if (req.url === '/api/ai' || req.url === '/llms.txt') {
       // AI-discovery surface: full fleet report as markdown for ANY assistant

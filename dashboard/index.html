@@ -142,6 +142,21 @@ tbody tr:last-child td{border-bottom:none}
 .conn .count{font-family:"Berkeley Mono",ui-monospace,monospace;font-size:22px;font-weight:600;margin-top:10px}
 .conn .count small{font-size:12px;color:var(--faint);font-weight:400;font-family:inherit}
 
+/* ── Lineage ─────────────────────────────────────────────────────────────*/
+.lin-root{display:flex;align-items:center;gap:11px;padding:11px 18px;border-bottom:1px solid var(--line-soft);cursor:pointer}
+.lin-root:hover{background:var(--surface2)}
+.lin-root .tw{color:var(--faint);font-size:11px;width:12px}
+.lin-root .rn{font-size:13px;color:var(--txt)}
+.lin-root .rmeta{margin-left:auto;font-size:12px;color:var(--dim);font-family:ui-monospace,monospace}
+.lin-tree{padding:6px 18px 14px 30px;background:var(--bg);border-bottom:1px solid var(--line-soft)}
+.lin-loading{color:var(--faint);font-size:12px;padding:8px}
+.tn{position:relative}
+.tn-row{display:flex;align-items:center;gap:9px;padding:4px 0}
+.tn-dot{width:7px;height:7px;border-radius:99px;flex:none}
+.tn-name{font-size:12.5px;color:var(--txt)}
+.tn-meta{font-size:11.5px;color:var(--faint);font-family:ui-monospace,monospace}
+.tn-kids{border-left:1px solid var(--line);margin-left:3px;padding-left:6px}
+.tn-more{font-size:11px;color:var(--faint);padding:3px 0 3px 18px;font-style:italic}
 /* ── Empty / loading ─────────────────────────────────────────────────────*/
 .empty{text-align:center;color:var(--dim);padding:50px 20px}
 .empty .big{font-size:15px;color:var(--txt);margin-bottom:6px}
@@ -159,6 +174,7 @@ tbody tr:last-child td{border-bottom:none}
     <div class="nav" id="nav">
       <a data-route="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
       <a data-route="agents"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Agents<span class="badge" id="b-agents">–</span></a>
+      <a data-route="lineage"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M6 8.5v3a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3M12 13.5v2"/></svg>Lineage<span class="badge" id="b-line">–</span></a>
       <a data-route="attention" class="alerts"><svg viewBox="0 0 24 24"><path d="M12 3l9 16H3z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r=".5"/></svg>Attention<span class="badge" id="b-attn">–</span></a>
       <a data-route="connectors"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg>Connectors<span class="badge" id="b-conn">–</span></a>
     </div>
@@ -188,7 +204,7 @@ const fmt = n => n==null?null : n>=1e6?(n/1e6).toFixed(1)+'M' : n>=1e3?Math.roun
 const rel = iso => { if(!iso) return '—'; const s=(Date.now()-Date.parse(iso))/1000;
   if(s<3600)return Math.max(1,Math.round(s/60))+'m ago'; if(s<86400)return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; };
 
-let FLEET=null, INSIGHTS=null;
+let FLEET=null, INSIGHTS=null, LINEAGE=null;
 const state = { agentSearch:'', agentVendor:'all', agentStatus:'all', sortKey:'lastRunAt', sortDir:-1 };
 
 async function load(){
@@ -201,13 +217,14 @@ async function load(){
   $('#b-agents').textContent=p.total;
   const attnBadge=$('#b-attn'); attnBadge.textContent=p.openAlerts+p.stale; attnBadge.classList.toggle('hot',p.openAlerts>0);
   $('#b-conn').textContent=(f.connectors||[]).filter(c=>!c.error).length;
+  fetch('/api/lineage').then(r=>r.json()).then(l=>{LINEAGE=l;const b=$('#b-line');if(b)b.textContent=l.summary.totalEdges;if(currentRoute()==='lineage')render();}).catch(()=>{});
   $('#freshText').textContent='synced '+rel(f.generatedAt);
   $('#railmachine').textContent=(f.machines[0]?.label||'—')+' · '+p.machines+' machine'+(p.machines===1?'':'s');
   render();
 }
 
-const routes=['overview','agents','attention','connectors'];
-const titles={overview:'Overview',agents:'Agents',attention:'Attention',connectors:'Connectors'};
+const routes=['overview','agents','lineage','attention','connectors'];
+const titles={overview:'Overview',agents:'Agents',lineage:'Lineage',attention:'Attention',connectors:'Connectors'};
 function currentRoute(){const h=location.hash.replace('#','');return routes.includes(h)?h:'overview';}
 function go(r){location.hash=r;}
 window.addEventListener('hashchange',render);
@@ -226,7 +243,7 @@ function render(){
   const r=currentRoute();
   const v=$('#view'); v.innerHTML='';
   const page=el('div','page');
-  ({overview:renderOverview,agents:renderAgents,attention:renderAttention,connectors:renderConnectors}[r])(page);
+  ({overview:renderOverview,agents:renderAgents,lineage:renderLineage,attention:renderAttention,connectors:renderConnectors}[r])(page);
   v.appendChild(page);
 }
 
@@ -388,6 +405,59 @@ function drawAgentTable(){
     if(state.sortKey===k)state.sortDir*=-1;else{state.sortKey=k;state.sortDir=k==='name'||k==='trigger'||k==='status'?1:-1;}
     drawAgentTable();
   });
+}
+
+/* ── LINEAGE ──────────────────────────────────────────────────────────── */
+function renderLineage(page){
+  if(!LINEAGE){ page.appendChild(el('div','empty','Loading lineage…')); fetch('/api/lineage').then(r=>r.json()).then(l=>{LINEAGE=l;render();}); return; }
+  const s=LINEAGE.summary;
+  const kpis=el('div','kpis');
+  kpis.appendChild(kpiTile('Spawn edges', s.totalEdges, 'parent → child links'));
+  kpis.appendChild(kpiTile('Lineage roots', s.rootsWithChildren, 'top-level agents that spawned work'));
+  kpis.appendChild(kpiTile('Max depth', s.maxDepth, 'deepest agent chain'));
+  kpis.appendChild(kpiTile('Widest fan-out', s.widestFanout?s.widestFanout.children:'—', s.widestFanout?esc(s.widestFanout.agentName):'none'));
+  page.appendChild(kpis);
+
+  const st=el('div','section-title'); st.textContent='Spawns by platform'; page.appendChild(st);
+  const pcard=el('div','card'); const pbd=el('div','bd');
+  const max=Math.max(1,...s.byVendor.map(v=>v.spawns));
+  s.byVendor.forEach(v=>{const row=el('div','pbar');row.innerHTML=`<span class="pv">${esc(v.vendor.replace('_',' '))}</span><span class="track"><span class="fill" style="width:${Math.round(v.spawns/max*100)}%"></span></span><span class="pn">${v.spawns}</span>`;pbd.appendChild(row);});
+  pcard.appendChild(pbd); page.appendChild(pcard);
+
+  const st2=el('div','section-title'); st2.textContent='Lineage roots — click to expand the spawn tree'; page.appendChild(st2);
+  const rcard=el('div','card'); const rbd=el('div'); rbd.style.padding='4px 0';
+  LINEAGE.roots.forEach(root=>{
+    const row=el('div','lin-root');
+    row.innerHTML=`<span class="tw">▸</span><span class="rn mono">${esc(root.agentName)}</span><span class="vtag">${esc(root.vendor.replace('_',' '))}</span>
+      <span class="rmeta">${root.directChildren} direct · ${root.descendantCount} descendants</span>`;
+    const treeBox=el('div','lin-tree'); treeBox.style.display='none';
+    row.onclick=async()=>{
+      const open=treeBox.style.display!=='none';
+      if(open){treeBox.style.display='none';row.querySelector('.tw').textContent='▸';return;}
+      row.querySelector('.tw').textContent='▾'; treeBox.style.display='block';
+      if(!treeBox.dataset.loaded){ treeBox.innerHTML='<div class="lin-loading">loading tree…</div>';
+        const t=await fetch('/api/lineage/tree?run='+encodeURIComponent(root.runId)).then(r=>r.json()).catch(()=>null);
+        treeBox.innerHTML=''; if(t)treeBox.appendChild(treeNode(t,0)); else treeBox.innerHTML='<div class="lin-loading">no tree</div>';
+        treeBox.dataset.loaded='1';
+      }
+    };
+    rbd.appendChild(row); rbd.appendChild(treeBox);
+  });
+  rcard.appendChild(rbd); page.appendChild(rcard);
+}
+function treeNode(n,depth){
+  const wrap=el('div','tn'); wrap.style.marginLeft=(depth?18:0)+'px';
+  const dot={healthy:'var(--ok)',completed:'var(--ok)',error:'var(--red)',unknown_end:'var(--amber)'}[n.status]||'var(--dim)';
+  wrap.innerHTML=`<div class="tn-row"><span class="tn-dot" style="background:${dot}"></span>
+    <span class="tn-name mono">${esc(n.agentName)}</span><span class="vtag">${esc(n.vendor.replace('_',' '))}</span>
+    <span class="tn-meta">${esc(n.trigger)} · ${n.status} · ${n.tokens==null?'unavail':fmt(n.tokens)} tok${n.children.length?` · ${n.descendantCount} desc`:''}</span></div>`;
+  if(n.children.length){
+    const kids=el('div','tn-kids');
+    n.children.slice(0,40).forEach(c=>kids.appendChild(treeNode(c,depth+1)));
+    if(n.children.length>40)kids.appendChild(el('div','tn-more','+ '+(n.children.length-40)+' more children'));
+    wrap.appendChild(kids);
+  }
+  return wrap;
 }
 
 /* ── ATTENTION ────────────────────────────────────────────────────────── */

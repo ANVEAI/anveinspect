@@ -7,6 +7,7 @@ import { deliverAlerts, loadNotifyConfig, NOTIFY_PATH } from './notify.js';
 import { buildReport } from './report.js';
 import { computeInsights } from './insights.js';
 import { onboardReport } from './onboard.js';
+import { lineageSummary, topLineageRoots, lineageTree } from './lineage.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -296,6 +297,36 @@ try {
       if (json) console.log(JSON.stringify({ onboarding: report, pulse: st.pulse, connectors: syncOutcomes }, null, 2));
       break;
     }
+    case 'lineage': {
+      const db = openDb();
+      if (args[1] === 'tree' && args[2]) {
+        const tree = lineageTree(db, args[2], 8);
+        db.close();
+        if (!tree) throw new Error(`no lineage for run "${args[2]}"`);
+        out(tree, () => {
+          const lines: string[] = [];
+          const walk = (n: any, depth: number) => {
+            lines.push(`${'  '.repeat(depth)}${depth ? '└ ' : ''}${n.agentName} [${n.vendor}/${n.trigger}] ${n.status} · ${n.tokens==null?'unavail':fmtTok(n.tokens)} tok${n.children.length?` · ${n.descendantCount} descendants`:''}`);
+            n.children.forEach((c: any) => walk(c, depth + 1));
+          };
+          walk(tree, 0);
+          return lines.join('\n');
+        });
+      } else {
+        const summary = lineageSummary(db);
+        const roots = topLineageRoots(db, 15);
+        db.close();
+        out({ summary, roots }, () =>
+          [
+            `lineage: ${summary.totalEdges} spawn edges · ${summary.rootsWithChildren} roots · max depth ${summary.maxDepth}`,
+            summary.widestFanout ? `widest fanout: ${summary.widestFanout.agentName} (${summary.widestFanout.children} children)` : '',
+            'top roots by descendants:',
+            ...roots.slice(0, 10).map((r) => `  ${r.agentName} [${r.vendor}] — ${r.directChildren} direct, ${r.descendantCount} total  (run ${r.runId.slice(0, 20)}…)`),
+          ].filter(Boolean).join('\n'),
+        );
+      }
+      break;
+    }
     case 'connectors': {
       const sub = args[1] ?? 'status';
       if (sub === 'sync') {
@@ -345,7 +376,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
+      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);
