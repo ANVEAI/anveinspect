@@ -64,7 +64,12 @@ describe('e2e: operator lifecycle through the CLI', () => {
   });
 
   it('declaring a daily cadence on the stale agent then checking produces a missed-window alert', () => {
-    cli(['cadence', 'declare', 'nightly', 'daily 03:00', '--grace', '60']);
+    // Time-independent: pick a daily time whose window opened 2h ago, so with a
+    // 60m grace the window is decisively missed at ANY wall-clock (a hardcoded
+    // time fails whenever the suite runs inside that time's grace period).
+    const twoHoursAgo = new Date(Date.now() - 2 * 3_600_000);
+    const hhmm = `${String(twoHoursAgo.getHours()).padStart(2, '0')}:${String(twoHoursAgo.getMinutes()).padStart(2, '0')}`;
+    cli(['cadence', 'declare', 'nightly', `daily ${hhmm}`, '--grace', '60']);
     const check = cli(['check']);
     const missed = check.openAlerts.find((a: any) => a.kind === 'missed_window');
     expect(missed).toBeDefined();
