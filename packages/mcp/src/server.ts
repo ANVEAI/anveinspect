@@ -15,6 +15,9 @@ import {
   machineId,
   machineLabel,
   FleetStore,
+  syncConnectors,
+  connectorStatus,
+  CONNECTORS_PATH,
 } from '@fleetdeck/collector';
 
 /**
@@ -227,6 +230,59 @@ server.registerTool(
       const acked = ackAlert(DEFAULT_DB, alert_id);
       if (!acked) return fail(`No open alert with id "${alert_id}". List open alerts with fleet_attention.`);
       return ok({ acked: true, id: alert_id }, `Acked ${alert_id}.`);
+    }),
+);
+
+server.registerTool(
+  'fleet_connectors_sync',
+  {
+    title: 'Sync platform connectors',
+    description:
+      'Pull agent catalogs from configured platforms (Bedrock, AI Foundry, Vertex, Cloudflare) and local frameworks (OpenClaw, Hermes) into the fleet inventory. Read-only + catalog-only by design. Credentials live client-side in ~/.fleetdeck/connectors.json — never synced anywhere.',
+    inputSchema: {
+      only: z.array(z.enum(['bedrock', 'foundry', 'vertex', 'cloudflare', 'openclaw', 'hermes'])).optional()
+        .describe('Limit to specific vendors; omit for all'),
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async ({ only }) => {
+    try {
+      const outcomes = await syncConnectors(DEFAULT_DB, { only: only as any });
+      return ok(
+        { outcomes },
+        outcomes
+          .map((o) =>
+            !o.configured
+              ? `${o.vendor}: not configured (credentials go in ${CONNECTORS_PATH})`
+              : o.error
+                ? `${o.vendor}: ERROR — ${o.error}`
+                : `${o.vendor}: ${o.agentCount} agents synced${o.warnings.length ? ` (${o.warnings.join('; ')})` : ''}`,
+          )
+          .join('\n'),
+      );
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : String(err));
+    }
+  },
+);
+
+server.registerTool(
+  'fleet_connectors_status',
+  {
+    title: 'Connector status',
+    description: 'Per-platform sync freshness: last sync time, agent counts, warnings, and any credential errors (with the minimal read-only role fix).',
+    inputSchema: {},
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async () =>
+    guard(() => {
+      const rows = connectorStatus(DEFAULT_DB);
+      return ok(
+        { connectors: rows },
+        rows.length === 0
+          ? `No connector has synced yet. Configure ${CONNECTORS_PATH} (fleetdeck connectors init writes a template) then run fleet_connectors_sync.`
+          : rows.map((r) => `${r.vendor}: ${r.agentCount} agents, synced ${r.syncedAt}${r.error ? ` — ERROR: ${r.error}` : ''}`).join('\n'),
+      );
     }),
 );
 

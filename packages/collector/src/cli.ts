@@ -1,6 +1,7 @@
 import { FleetStore } from './store.js';
 import { scanClaudeProjects, machineId, machineLabel } from './claude-scanner.js';
 import { DEFAULT_DB, openDb, listAgents, agentDetail, declareCadence, runCheck, fleetStatus, ackAlert } from './queries.js';
+import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFile, CONNECTORS_PATH } from './connectors.js';
 
 /**
  * fleetdeck CLI — the surface Claude's plugin skills operate.
@@ -141,8 +142,47 @@ try {
       out({ acked: ok, id }, () => (ok ? `acked ${id}` : `no open alert with id ${id}`));
       break;
     }
+    case 'connectors': {
+      const sub = args[1] ?? 'status';
+      if (sub === 'sync') {
+        const outcomes = await syncConnectors(DEFAULT_DB);
+        out(outcomes, () =>
+          outcomes
+            .map((o) =>
+              !o.configured
+                ? `- ${o.vendor}: not configured (add credentials to ${CONNECTORS_PATH})`
+                : o.error
+                  ? `X ${o.vendor}: ${o.error}`
+                  : `· ${o.vendor}: ${o.agentCount} agents${o.warnings.length ? `  [${o.warnings.join(' | ')}]` : ''}`,
+            )
+            .join('\n'),
+        );
+      } else if (sub === 'status') {
+        const rows = connectorStatus(DEFAULT_DB);
+        out(rows, () =>
+          rows.length === 0
+            ? `no connector has synced yet — run "fleetdeck connectors sync" (config: ${CONNECTORS_PATH})`
+            : rows.map((r) => `${r.error ? 'X' : '·'} ${r.vendor}: ${r.agentCount} agents, synced ${r.syncedAt}${r.error ? `  ERROR: ${r.error}` : ''}`).join('\n'),
+        );
+      } else if (sub === 'init') {
+        const existing = loadConnectorsFile();
+        const template = {
+          bedrock: existing.bedrock ?? { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' },
+          foundry: existing.foundry ?? { endpoint: 'https://<resource>.services.ai.azure.com/api/projects/<project>', tenantId: '', clientId: '', clientSecret: '' },
+          vertex: existing.vertex ?? { projectId: '', location: 'us-central1', serviceAccountKeyFile: '~/keys/vertex-viewer.json' },
+          cloudflare: existing.cloudflare ?? { accountId: '', apiToken: '' },
+          openclaw: existing.openclaw ?? { path: '~/.openclaw' },
+          hermes: existing.hermes ?? { path: '~/.hermes' },
+        };
+        writeConnectorsFile(template as any);
+        out({ path: CONNECTORS_PATH }, () => `template written to ${CONNECTORS_PATH} (mode 0600). Fill in READ-ONLY credentials only, then "fleetdeck connectors sync".`);
+      } else {
+        throw new Error('usage: fleetdeck connectors <sync|status|init>');
+      }
+      break;
+    }
     default:
-      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack)`);
+      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors)`);
   }
 } catch (err) {
   console.error(`fleetdeck: ${err instanceof Error ? err.message : String(err)}`);

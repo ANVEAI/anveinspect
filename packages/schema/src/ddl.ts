@@ -66,6 +66,14 @@ CREATE TABLE IF NOT EXISTS alerts (
   snoozed_until TEXT
 );
 
+CREATE TABLE IF NOT EXISTS connector_syncs (
+  vendor TEXT PRIMARY KEY,
+  synced_at TEXT NOT NULL,
+  agent_count INTEGER NOT NULL,
+  warnings TEXT NOT NULL DEFAULT '[]',
+  error TEXT                          -- last auth/config error, verbatim actionable text
+);
+
 CREATE TABLE IF NOT EXISTS outbox (
   seq INTEGER PRIMARY KEY AUTOINCREMENT,
   payload TEXT NOT NULL,            -- normalized event JSON (data-boundary fields only)
