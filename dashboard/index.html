@@ -316,6 +316,12 @@ function renderOverview(page){
   grid.appendChild(platformCard());
   page.appendChild(grid);
 
+  // What's running / why running — runs grouped by how they were triggered
+  if(ANALYTICS && ANALYTICS.whyRunning && ANALYTICS.whyRunning.length){
+    const sw=el('div','section-title'); sw.textContent='Why running · 30d (runs by trigger)'; page.appendChild(sw);
+    page.appendChild(whyRunningCard());
+  }
+
   // Cost breakdown
   if(ANALYTICS && ANALYTICS.pricedRuns>0){
     const st3=el('div','section-title'); st3.textContent='Estimated cost · 30d (token counts are exact; dollars are estimates)'; page.appendChild(st3);
@@ -382,6 +388,19 @@ function trendCard(){
   return c;
 }
 
+const TRIGGER_LABEL={interactive:'Interactive (a human drove it)',subagent:'Spawned by another agent',scheduled:'Scheduled / cadence',hook:'Hook-triggered',unknown:'Unclassified'};
+function whyRunningCard(){
+  const c=el('div','card');
+  c.innerHTML=`<div class="hd"><h3>Runs by trigger</h3><span class="meta">last 30 days</span></div>`;
+  const bd=el('div','bd');
+  const rows=ANALYTICS.whyRunning; const max=Math.max(1,...rows.map(r=>r.runs));
+  rows.forEach(r=>{
+    const row=el('div','pbar');
+    row.innerHTML=`<span class="pv" title="${esc(TRIGGER_LABEL[r.trigger]||r.trigger)}">${esc(TRIGGER_LABEL[r.trigger]||r.trigger)}</span><span class="track"><span class="fill" style="width:${Math.round(r.runs/max*100)}%"></span></span><span class="pn">${r.runs}</span>`;
+    bd.appendChild(row);
+  });
+  c.appendChild(bd); return c;
+}
 function platformCard(){
   const c=el('div','card');
   c.innerHTML=`<div class="hd"><h3>Agents by platform</h3></div>`;

@@ -86,3 +86,11 @@ what's running, why, agent insights, and control, in a single dashboard.
 - verified: typecheck clean, 76 tests green (+5: partial-pricing + 4 hardening
   regressions). All endpoints 200; tag round-trip, 413 body cap, 403 cross-origin
   all confirmed live. README updated with dashboard/insights/control sections.
+
+### Cycle 7 (why-running insight) — DONE
+- Closed the goal's explicit "why running" gap. Added whyRunning to computeAnalytics
+  (30d runs grouped by trigger_source: interactive/subagent/scheduled/hook), exposed
+  on /api/analytics, rendered a "Why running · runs by trigger" card on Overview with
+  human-readable labels.
+- verified live: 1196 subagent-spawned vs 307 interactive runs — 80% of fleet
+  activity is agents spawning agents. Card renders, no console errors, 76 tests green.
