@@ -1,84 +1,133 @@
-# anveinspect (working codename — see docs/naming.md before launch)
+# AnveInspect
 
-Agent fleet control plane: discovery, lineage & inventory for coding agents.
-Zero-instrumentation — reads the logs your agents already write.
+**The control tower for your AI agent fleet.** Discovery, lineage, inventory, and
+silent-failure alerting for coding agents — across Claude Code, Codex, OpenClaw,
+Hermes, and (read-only) Amazon Bedrock, Google Vertex, Microsoft AI Foundry, and
+Cloudflare Workers.
 
-**Status:** Slice 1 (local collector + dashboard). Design doc & review record:
-`~/.gstack/projects/voice-forms/adarshkant-agent-fleet-design-20260713-002813.md`
+Zero instrumentation. It reads the logs your agents already write and reuses the
+platform CLIs you're already signed into. Operated by Claude through an MCP plugin,
+by you through a CLI, or watched by a dashboard.
 
 ```
-claude hooks ──▶ fleet-emit ──▶ spool ─┐
-                                        ├──▶ SQLite ──▶ local dashboard (:4177)
-~/.claude/projects JSONL ──▶ scanner ──┘        └──▶ (Slice 2+) outbox ──▶ hosted backend
+platform CLIs (gcloud/aws/wrangler/az)  ─┐
+claude/codex/openclaw/hermes local logs ─┼─▶ collector ─▶ SQLite ─┬─▶ CLI
+claude hooks ─▶ fleet-emit ─▶ spool ─────┘                        ├─▶ MCP (Claude operates it)
+                                                                  ├─▶ dashboard (:4177)
+                                          cadence engine ─▶ alerts ┴─▶ Slack (the pager)
 ```
 
-## Quick start
+## Plug and play
 
 ```bash
 npm install
-npx tsx packages/collector/src/cli.ts scan      # inventory -> ~/.anveinspect/fleet.db
-npx tsx packages/collector/src/cli.ts status    # pulse + open alerts
-npm run dash                                    # dashboard at http://localhost:4177
-npm test                                        # 17 tests
+npx anveinspect doctor      # detect platforms, reuse your CLI logins, first scan
+```
+
+`doctor` reuses the sessions you already have — `gcloud auth login`, `aws configure`,
+`wrangler login`, `az login` — so cloud platforms connect with **no API keys to paste**.
+Anything not signed in prints the exact one-line command to fix it. Example:
+
+```
+✓ Claude Code            reads ~/.claude/projects (no signin needed)
+✓ Codex                  reads ~/.codex/sessions (no signin needed)
+✓ Google Vertex          gcloud authed, project my-proj
+→ Cloudflare Workers     wrangler present but not logged in
+      sign in:  wrangler login
+```
+
+Then:
+
+```bash
+npx anveinspect status      # fleet pulse + open alerts + stale agents
+npx anveinspect report      # full AI-ready briefing
+npm run dash                # dashboard at http://localhost:4177
 ```
 
 ## Operated by Claude (the primary interface)
 
-The plugin (`packages/plugin`) makes any Claude Code session the fleet operator:
+Install the plugin (`claude --plugin-dir packages/plugin`) and any Claude session
+becomes your fleet operator. Ask it: *"connect my platforms"* → `/anveinspect:setup`;
+*"how's my fleet?"* → a full briefing; *"watch my nightly agent, it runs at 3am"* →
+it declares the cadence and the next silent failure pages you.
 
-- **MCP tools** (`.mcp.json` → `@anveinspect/mcp`, stdio): `fleet_status`,
-  `fleet_attention`, `fleet_agents`, `fleet_agent_detail`, `fleet_scan`,
-  `fleet_declare_cadence`, `fleet_check`, `fleet_ack` — zod-validated,
-  structured content, read-only annotations.
-- **Skill** `skills/fleet-ops/SKILL.md`: the operating loop (freshness → pulse →
-  triage → watch → resolve) + judgment rules (declared cadences are the alerting
-  contract; unavailable ≠ zero; stale ≠ broken; never ack silently).
-- **Slash commands**: `/anveinspect:status`, `/anveinspect:scan`,
-  `/anveinspect:attention`, `/anveinspect:watch <agent> "<expect>"`.
-- **Hooks** (`hooks/hooks.json` + `fleet-emit`): live event spool with PID
-  recording for crash detection.
+- **13 MCP tools** (`fleet_setup`, `fleet_status`, `fleet_attention`, `fleet_agents`,
+  `fleet_agent_detail`, `fleet_scan`, `fleet_declare_cadence`, `fleet_check`,
+  `fleet_ack`, `fleet_report`, `fleet_insights`, `fleet_connectors_sync`,
+  `fleet_connectors_status`) — zod-validated, structured output, read-only annotations.
+- **Skill** `fleet-ops` + slash commands `/anveinspect:setup`, `:status`, `:scan`,
+  `:attention`, `:watch`, `:brief`.
+- **Hooks** capture live run events for crash detection and trigger classification.
 
-Ask Claude "did my nightly agent run?" / "what's burning tokens?" / "watch my
-autopilot, it should post daily at 3am" — that's the product.
+## Silent-failure alerting (the wedge)
 
-## Alerting (Slice 2 wedge, local mode)
+Declare when an agent *should* run and get paged when it doesn't:
 
-Cadence grammar: `daily HH:MM` · `weekdays HH:MM` · `weekly mon HH:MM` ·
-`every Nh`. Declared-first: inferred cadences never page. Missed-window uses
-grace periods; token-spike fires at >3x trailing median (≥5 runs history);
-alerts dedup against open ones (no re-fire storms); ack from CLI, MCP, or the
-dashboard's Ack button. CLI/MCP/dashboard all read one query layer —
-identical numbers everywhere.
+```bash
+anveinspect cadence declare zapmind-autopilot "daily 03:00" --grace 60
+anveinspect check              # evaluate now
+anveinspect schedule install   # launchd job every 15 min: scan → check → deliver
+```
 
-## Packages
+Cadence grammar: `daily HH:MM` · `weekdays HH:MM` · `weekly mon HH:MM` · `every Nh`.
+Declared cadences page; inferred ones only suggest. Token spikes fire at >3× the
+trailing median. Alerts dedup per window (ack once, never re-fire), deliver to Slack
+exactly once (webhook in `~/.anveinspect/notify.json`), and retry on failure.
 
-- `packages/schema` — vendor-neutral types, agent fingerprinting (git-remote-first,
-  machine-independent), SQLite DDL. Cadences bind to (agent, machine) pairs.
-- `packages/collector` — JSONL scanner (hooks-primary/JSONL-enrichment split;
-  cross-file usage dedup by message.id+requestId — the ccusage #913 bug class;
-  subagent lineage via `subagents/agent-*.jsonl` + meta.json), scan CLI, store.
-- `packages/plugin` — Claude Code plugin: hooks.json (SessionStart/End, Subagent*,
-  Stop/StopFailure, PostToolUse) + `fleet-emit` spool writer. Observation-only,
-  always exits 0, never blocks the agent.
-- `packages/adapters` — (Slice 3, gated) isomorphic platform connectors.
-- `dashboard` — approved dark-ops-console design; fleet-pulse headline,
-  needs-attention strip, inventory table. Tokens render "unavailable", never 0,
-  when JSONL was unparseable.
+## All commands
 
-## Known constraints (from research, 2026-07-13)
+| Command | What it does |
+|---|---|
+| `doctor` / `init` | Detect platforms, reuse CLI logins, first scan + sync |
+| `scan` | Ingest local Claude Code + Codex history (idempotent) |
+| `status` | Fleet pulse, open alerts, stale agents |
+| `agents` | Full inventory |
+| `agent <name>` | One agent: runs, cadence, subagent spawns |
+| `report` | AI-ready markdown briefing (pulse, trend, economics, coverage) |
+| `insights` | Structured analytics (JSON) |
+| `check` | Evaluate cadences + token spikes, persist alerts |
+| `cadence declare <agent> "<expect>"` | Declare an expected schedule |
+| `ack <id>` | Acknowledge an alert |
+| `tick` | scan → check → deliver (the scheduled entrypoint) |
+| `notify deliver` | Push open alerts to Slack now |
+| `schedule install\|status\|uninstall` | launchd standing watch |
+| `connectors sync\|status\|init\|set` | Platform connectors |
 
-- Hooks carry NO token data — JSONL is the sole usage source; parser must degrade
-  gracefully (undocumented format, drifts across CC versions).
-- `claude -p --bare` skips hook discovery (may become default): fleet cron jobs
-  must pass `--settings`/`--plugin-dir` explicitly, and set `ANVEINSPECT_TRIGGER=cron`.
-- SessionEnd is graceful-only: crash detection = heartbeat ledger + PID liveness
-  (fleet-emit records claudePid) + transcript reconciliation.
-- Claude Code cleans JSONL after ~30 days — scan early, persist everything.
+Add `--json` to any command for machine-readable output.
 
-## Alert delivery (local pager mode)
+## Architecture
 
-`anveinspect tick` = scan → check → deliver. Slack webhook in
-`~/.anveinspect/notify.json`; exactly-once delivery with retry-on-failure.
-`anveinspect schedule install` writes a launchd plist (15-min interval);
-activate with `launchctl load`. Inline Slack Ack buttons arrive with the
-hosted interactivity endpoint (Slice 4, demand-gated).
+Monorepo (`packages/*`): `schema` (vendor-neutral types + SQLite DDL + fingerprinting),
+`collector` (scanners, cadence engine, connectors, onboarding, CLI), `adapters`
+(isomorphic platform connectors — pure fetch, no vendor SDKs, so the same code runs
+locally and in Workers later), `mcp` (stdio server), `plugin` (Claude Code plugin).
+One shared query layer feeds CLI, MCP, and dashboard — identical numbers everywhere.
+
+## Design principles (verified in code + tests)
+
+- **Read-only + catalog-only** for cloud connectors: least-privilege scopes, never a
+  mutating call, credentials stay client-side (`~/.anveinspect/connectors.json`, 0600)
+  and never touch the fleet database.
+- **Honest data**: token counts unavailable ≠ zero; inferred values are labeled and
+  never page; dollar figures are never invented.
+- **Never break the watchdog**: transcripts deleted mid-scan, corrupt lines, and
+  degraded rescans all fail safe without losing data or crashing the tick.
+
+## Development
+
+```bash
+npm test          # 50+ tests (unit, e2e, adapters, cadence/DST, spool, codex)
+npm run typecheck # 0 errors
+```
+
+CI (GitHub Actions) runs typecheck + tests + an MCP handshake on every push.
+
+## Known constraints
+
+- Token/cost data comes from local transcripts (undocumented format); the collector
+  degrades gracefully across version drift.
+- Cloud connectors are catalog-only in v1 (inventory + metadata staleness, not
+  per-run telemetry — that lives in each cloud's monitoring stack).
+- Standing watch is macOS launchd today (Linux systemd/cron is a small follow-up).
+
+MIT licensed.

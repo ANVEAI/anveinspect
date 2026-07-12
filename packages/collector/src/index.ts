@@ -7,3 +7,5 @@ export * from './notify.js';
 export * from './insights.js';
 export * from './report.js';
 export * from './codex-scanner.js';
+export * from './onboard.js';
+export * from './cli-credentials.js';

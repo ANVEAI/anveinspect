@@ -21,6 +21,7 @@ import {
   scanCodexSessions,
   buildReport,
   computeInsights,
+  onboardReport,
 } from '@anveinspect/collector';
 
 /**
@@ -327,6 +328,48 @@ server.registerTool(
       const s = insights;
       return ok(s, `Insights ready: ${s.topAgents.length} agents profiled, ${s.cadenceSuggestions.length} cadence suggestions, ${s.unwatchedRisks.length} unwatched risks, week-over-week ${s.weekOverWeek.deltaPct ?? 'n/a'}%.`);
     }),
+);
+
+server.registerTool(
+  'fleet_setup',
+  {
+    title: 'Setup / onboarding',
+    description:
+      'Plug-and-play onboarding: detect every agent platform on this machine, reuse the CLIs the user already signed into (gcloud/aws/wrangler/az — no API keys), scan local logs, and report what is connected plus the exact one-line signin command for anything that is not. Use this FIRST when a user installs AnveInspect or asks how to connect their platforms.',
+    inputSchema: {},
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+  },
+  async () => {
+    try {
+      const report = onboardReport();
+      // first scan so setup ends with live inventory
+      const scan = scanClaudeProjects();
+      const codex = scanCodexSessions();
+      const store = new FleetStore(DEFAULT_DB);
+      store.upsertMachine({ id: machineId(), label: machineLabel(), lastHeartbeatAt: new Date().toISOString() });
+      store.db.transaction(() => {
+        for (const a of scan.agents) store.upsertAgent(a);
+        for (const r of scan.runs) store.upsertRun(r);
+        for (const s of scan.spawns) store.insertSpawn(s);
+        for (const a of codex.agents) store.upsertAgent(a);
+        for (const r of codex.runs) store.upsertRun(r);
+      })();
+      store.close();
+      const connectors = await syncConnectors(DEFAULT_DB);
+      const db = openDb();
+      const st = fleetStatus(db);
+      db.close();
+      const needs = report.needsAction.map((p: any) => `${p.label}: ${p.fixCommand}`);
+      return ok(
+        { onboarding: report, pulse: st.pulse, connectors },
+        `Fleet live: ${st.pulse.total} agents across ${st.pulse.platforms} platform(s). ` +
+          `Ready: ${report.ready.join(', ') || 'none'}. ` +
+          (needs.length ? `One-time signin to add more:\n${needs.map((n: string) => '  ' + n).join('\n')}` : 'Everything reachable is connected.'),
+      );
+    } catch (err) {
+      return fail(err instanceof Error ? err.message : String(err));
+    }
+  },
 );
 
 const transport = new StdioServerTransport();

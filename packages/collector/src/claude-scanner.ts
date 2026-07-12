@@ -351,6 +351,7 @@ export function resolveProjectIdentity(
       const remote = execFileSync('git', ['-C', cwd, 'remote', 'get-url', 'origin'], {
         encoding: 'utf8',
         timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'], // suppress "No such remote" on stderr
       }).trim();
       if (remote) return { identity: remote, source: 'git_remote' };
     } catch {

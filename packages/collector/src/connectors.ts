@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import type { Agent, Vendor } from '@anveinspect/schema';
 import { runConnector, CONNECTOR_VENDORS, ConnectorAuthError, type PlatformAgent, type AdapterContext, defaultContext } from '@anveinspect/adapters';
+import { resolveViaCli } from './cli-credentials.js';
 import { FleetStore } from './store.js';
 
 /**
@@ -60,6 +61,7 @@ export interface SyncOutcome {
   agentCount: number;
   warnings: string[];
   error: string | null;
+  hint?: string;   // plug-and-play: how to connect this vendor (signin command)
 }
 
 /** Resolve config indirections (e.g. vertex serviceAccountKeyFile -> key JSON). */
@@ -85,7 +87,18 @@ export async function syncConnectors(
     for (const vendor of CONNECTOR_VENDORS) {
       if (opts.only && !opts.only.includes(vendor)) continue;
       const isLocal = vendor === 'openclaw' || vendor === 'hermes';
-      const raw = file[vendor];
+      let raw = file[vendor];
+      // Plug-and-play: cloud vendors with no config (or auth:"cli") resolve
+      // credentials from the platform's own CLI session — no key-pasting.
+      if (!isLocal && (!raw || raw.auth === 'cli')) {
+        const resolved = resolveViaCli(vendor, raw);
+        if (resolved.error) {
+          // not signed in / not configured -> not an error, just "not connected yet"
+          outcomes.push({ vendor, configured: false, agentCount: 0, warnings: [], error: null, hint: resolved.error });
+          continue;
+        }
+        raw = resolved.config!;
+      }
       if (!raw && !isLocal) {
         outcomes.push({ vendor, configured: false, agentCount: 0, warnings: [], error: null });
         continue;

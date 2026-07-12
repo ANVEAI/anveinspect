@@ -6,6 +6,7 @@ import { syncConnectors, connectorStatus, loadConnectorsFile, writeConnectorsFil
 import { deliverAlerts, loadNotifyConfig, NOTIFY_PATH } from './notify.js';
 import { buildReport } from './report.js';
 import { computeInsights } from './insights.js';
+import { onboardReport } from './onboard.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -255,6 +256,46 @@ try {
       }
       break;
     }
+    case 'doctor':
+    case 'init': {
+      // Plug-and-play front door: detect platforms, reuse their CLI logins,
+      // tell the user the exact one-line signin for anything not connected,
+      // then do a first scan + sync so they see results immediately.
+      const report = onboardReport();
+      const icon = (s: string) => (s === 'ready' ? '✓' : s === 'not_present' ? '·' : '→');
+      if (!json) {
+        console.log('AnveInspect — platform check\n');
+        for (const p of report.probes) {
+          console.log(`  ${icon(p.status)} ${p.label.padEnd(22)} ${p.detail}`);
+          if (p.fixCommand) console.log(`      sign in:  ${p.fixCommand}`);
+        }
+        console.log(`\n${report.summary}\n`);
+      }
+      // first scan + sync so `doctor` ends with live results, not just a checklist
+      const scanResult = scanClaudeProjects();
+      const codexResult = scanCodexSessions();
+      const store = new FleetStore(DEFAULT_DB);
+      store.upsertMachine({ id: machineId(), label: machineLabel(), lastHeartbeatAt: new Date().toISOString() });
+      store.db.transaction(() => {
+        for (const a of scanResult.agents) store.upsertAgent(a);
+        for (const r of scanResult.runs) store.upsertRun(r);
+        for (const s of scanResult.spawns) store.insertSpawn(s);
+        for (const a of codexResult.agents) store.upsertAgent(a);
+        for (const r of codexResult.runs) store.upsertRun(r);
+      })();
+      store.close();
+      const syncOutcomes = await syncConnectors(DEFAULT_DB);
+      const db = openDb();
+      const st = fleetStatus(db);
+      db.close();
+      if (!json) {
+        const connected = syncOutcomes.filter((o) => o.configured && !o.error).length;
+        console.log(`Fleet ready: ${st.pulse.total} agents across ${st.pulse.platforms} platform(s), ${connected} connector(s) synced.`);
+        console.log(`Next: "anveinspect status" for the pulse, "anveinspect report" for the full picture.`);
+      }
+      if (json) console.log(JSON.stringify({ onboarding: report, pulse: st.pulse, connectors: syncOutcomes }, null, 2));
+      break;
+    }
     case 'connectors': {
       const sub = args[1] ?? 'status';
       if (sub === 'sync') {
@@ -263,13 +304,22 @@ try {
           outcomes
             .map((o) =>
               !o.configured
-                ? `- ${o.vendor}: not configured (add credentials to ${CONNECTORS_PATH})`
+                ? `- ${o.vendor}: not connected${o.hint ? ` — ${o.hint}` : ` (run: anveinspect connectors init)`}`
                 : o.error
                   ? `X ${o.vendor}: ${o.error}`
                   : `· ${o.vendor}: ${o.agentCount} agents${o.warnings.length ? `  [${o.warnings.join(' | ')}]` : ''}`,
             )
             .join('\n'),
         );
+      } else if (sub === 'set') {
+        // anveinspect connectors set <vendor> <key> <value>  — no hand-editing JSON
+        const [, , vendor, key, ...rest] = args;
+        const value = rest.join(' ');
+        if (!vendor || !key || !value) throw new Error('usage: anveinspect connectors set <vendor> <key> <value>');
+        const file = loadConnectorsFile();
+        (file as any)[vendor] = { ...(file as any)[vendor], [key]: value };
+        writeConnectorsFile(file);
+        out({ vendor, key, set: true }, () => `set ${vendor}.${key} in ${CONNECTORS_PATH} (0600). Run "anveinspect connectors sync".`);
       } else if (sub === 'status') {
         const rows = connectorStatus(DEFAULT_DB);
         out(rows, () =>
@@ -295,7 +345,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
+      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);
