@@ -85,7 +85,8 @@ export function lineageTree(db: Database.Database, rootRunId: string, maxDepth =
             a.display_name, a.vendor, a.trigger_source
      FROM runs r JOIN agents a ON a.fingerprint = r.agent_fingerprint WHERE r.id = ?`,
   );
-  const childStmt = db.prepare(`SELECT child_run_id, confidence FROM spawns WHERE parent_run_id = ?`);
+  // LIMIT in SQL so a pathological parent never loads millions of rows before we slice
+  const childStmt = db.prepare(`SELECT child_run_id, confidence FROM spawns WHERE parent_run_id = ? LIMIT 500`);
 
   function build(runId: string, confidence: number, depth: number, seen: Set<string>): LineageNode | null {
     if (seen.has(runId)) return null; // cycle guard (shouldn't happen, but never loop)
@@ -95,8 +96,7 @@ export function lineageTree(db: Database.Database, rootRunId: string, maxDepth =
     const selfTokens = tokensOf(r.tokens_by_model);
     const children: LineageNode[] = [];
     if (depth < maxDepth) {
-      // cap children per node so a pathological fan-out can't build an unbounded tree
-      const kids = (childStmt.all(runId) as any[]).slice(0, 500);
+      const kids = childStmt.all(runId) as any[];
       for (const c of kids) {
         const node = build(c.child_run_id, c.confidence, depth + 1, seen);
         if (node) children.push(node);

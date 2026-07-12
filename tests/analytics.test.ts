@@ -16,9 +16,22 @@ describe('costOf', () => {
     const r = costOf({ 'some-future-model': { input: 1e6, output: 1e6, cacheCreation: 0, cacheRead: 0 } }, DEFAULT_RATES);
     expect(r.priced).toBe(false);
     expect(r.usd).toBe(0);
+    expect(r.partial).toBe(false); // all unknown -> not partial, just unpriced
+  });
+  it('mixed known + unknown models: priced but flagged partial (usd is an undercount)', () => {
+    const r = costOf(
+      {
+        'claude-sonnet-5': { input: 1e6, output: 1e6, cacheCreation: 0, cacheRead: 0 },
+        'some-future-model': { input: 1e6, output: 1e6, cacheCreation: 0, cacheRead: 0 },
+      },
+      DEFAULT_RATES,
+    );
+    expect(r.priced).toBe(true);
+    expect(r.partial).toBe(true); // the unknown model's cost was dropped — not silently
+    expect(r.usd).toBeCloseTo(3 + 15, 4); // only the sonnet portion is counted
   });
   it('null tokens -> unpriced, zero', () => {
-    expect(costOf(null, DEFAULT_RATES)).toEqual({ usd: 0, priced: false });
+    expect(costOf(null, DEFAULT_RATES)).toEqual({ usd: 0, priced: false, partial: false });
   });
 });
 

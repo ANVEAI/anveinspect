@@ -14,6 +14,7 @@ export interface FleetAnalytics {
   estimatedCostUsd: number;
   pricedRuns: number;
   unpricedRuns: number;      // runs with tokens but no known model rate
+  partiallyPricedRuns: number; // runs mixing known + unknown models — cost is an undercount
   tokenlessRuns: number;     // runs with no token data at all (unavailable)
   costByModel: { model: string; usd: number; tokens: number }[];
   costByVendor: { vendor: string; usd: number }[];
@@ -39,6 +40,7 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
   let estimatedCostUsd = 0;
   let pricedRuns = 0;
   let unpricedRuns = 0;
+  let partiallyPricedRuns = 0;
   let tokenlessRuns = 0;
   const costByModel = new Map<string, { usd: number; tokens: number }>();
   const costByVendor = new Map<string, number>();
@@ -48,17 +50,19 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
   const emptyTimes = (): number[] => [];
 
   for (const r of runs) {
-    if (r.started_at) hourHist[new Date(r.started_at).getHours()]++;
+    const startedMs = r.started_at ? Date.parse(r.started_at) : NaN; // invalid timestamps -> NaN, skipped below
+    if (!Number.isNaN(startedMs)) hourHist[new Date(startedMs).getHours()]++;
     if (r.status === 'error') {
       const f = failuresByAgent.get(r.fingerprint) ?? { name: r.display_name, times: emptyTimes() };
-      if (r.started_at) f.times.push(Date.parse(r.started_at));
+      if (!Number.isNaN(startedMs)) f.times.push(startedMs); // never push NaN — it poisons new Date(...).toISOString()
       failuresByAgent.set(r.fingerprint, f);
     }
     const tbm = r.tokens_by_model === null ? null : safeParse(r.tokens_by_model);
     if (!tbm) { tokenlessRuns++; continue; }
-    const { usd, priced } = costOf(tbm, rates);
+    const { usd, priced, partial } = costOf(tbm, rates);
     if (!priced) { unpricedRuns++; continue; }
     pricedRuns++;
+    if (partial) partiallyPricedRuns++; // some model in this run had no rate — usd undercounts
     estimatedCostUsd += usd;
     costByVendor.set(r.vendor, (costByVendor.get(r.vendor) ?? 0) + usd);
     const ag = costByAgent.get(r.fingerprint) ?? { name: r.display_name, vendor: r.vendor, usd: 0, runs: 0 };
@@ -92,6 +96,7 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
     estimatedCostUsd,
     pricedRuns,
     unpricedRuns,
+    partiallyPricedRuns,
     tokenlessRuns,
     costByModel: [...costByModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.usd - a.usd),
     costByVendor: [...costByVendor.entries()].map(([vendor, usd]) => ({ vendor, usd })).sort((a, b) => b.usd - a.usd),

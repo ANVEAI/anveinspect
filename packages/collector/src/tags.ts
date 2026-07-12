@@ -7,6 +7,18 @@ import Database from 'better-sqlite3';
  * organize and annotate the fleet, don't mutate remote systems.
  */
 
+const TAGS_DDL = `CREATE TABLE IF NOT EXISTS agent_tags (
+  agent_fingerprint TEXT NOT NULL,
+  tag TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (agent_fingerprint, tag)
+)`;
+
+/** Ensure the tags table exists on a writable handle (old DBs created before this migration). */
+function ensureTagsTable(db: Database.Database): void {
+  db.exec(TAGS_DDL);
+}
+
 function resolveFingerprint(db: Database.Database, nameOrFp: string): string {
   const a = db
     .prepare(`SELECT fingerprint FROM agents WHERE fingerprint = ? OR display_name = ? ORDER BY last_run_at DESC LIMIT 1`)
@@ -20,6 +32,7 @@ export function addTag(dbPath: string, agentNameOrFp: string, tag: string): { ag
   if (!clean) throw new Error('tag cannot be empty');
   const db = new Database(dbPath);
   try {
+    ensureTagsTable(db);
     const fp = resolveFingerprint(db, agentNameOrFp);
     db.prepare(`INSERT OR IGNORE INTO agent_tags (agent_fingerprint, tag, created_at) VALUES (?, ?, datetime('now'))`).run(fp, clean);
     return { agent: agentNameOrFp, tag: clean };
@@ -31,6 +44,7 @@ export function addTag(dbPath: string, agentNameOrFp: string, tag: string): { ag
 export function removeTag(dbPath: string, agentNameOrFp: string, tag: string): boolean {
   const db = new Database(dbPath);
   try {
+    ensureTagsTable(db);
     const fp = resolveFingerprint(db, agentNameOrFp);
     const res = db.prepare(`DELETE FROM agent_tags WHERE agent_fingerprint = ? AND tag = ?`).run(fp, tag.trim().toLowerCase());
     return res.changes > 0;
@@ -39,13 +53,20 @@ export function removeTag(dbPath: string, agentNameOrFp: string, tag: string): b
   }
 }
 
+/** True if agent_tags exists — a read-only handle on a DB predating the migration won't have it. */
+function tagsTableExists(db: Database.Database): boolean {
+  return !!db.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_tags'`).get();
+}
+
 export function tagsFor(db: Database.Database, fingerprint: string): string[] {
+  if (!tagsTableExists(db)) return [];
   return (db.prepare(`SELECT tag FROM agent_tags WHERE agent_fingerprint = ? ORDER BY tag`).all(fingerprint) as any[]).map((r) => r.tag);
 }
 
 /** fingerprint -> tags map for the whole fleet (one query; used to decorate lists). */
 export function allTags(db: Database.Database): Map<string, string[]> {
   const m = new Map<string, string[]>();
+  if (!tagsTableExists(db)) return m;
   for (const r of db.prepare(`SELECT agent_fingerprint, tag FROM agent_tags ORDER BY tag`).all() as any[]) {
     const list = m.get(r.agent_fingerprint);
     if (list) list.push(r.tag);
@@ -56,6 +77,7 @@ export function allTags(db: Database.Database): Map<string, string[]> {
 
 /** Distinct tags across the fleet with usage counts (for filter chips). */
 export function tagSummary(db: Database.Database): { tag: string; count: number }[] {
+  if (!tagsTableExists(db)) return [];
   return (db.prepare(`SELECT tag, COUNT(*) AS count FROM agent_tags GROUP BY tag ORDER BY count DESC, tag`).all() as any[])
     .map((r) => ({ tag: r.tag, count: r.count }));
 }

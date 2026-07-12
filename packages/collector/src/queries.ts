@@ -13,6 +13,30 @@ import { allTags, tagsFor } from './tags.js';
 
 export const DEFAULT_DB = process.env.ANVEINSPECT_DB ?? join(homedir(), '.anveinspect', 'fleet.db');
 
+/** Parse a JSON blob that came from local transcripts (undocumented format); never crash a read on a corrupt row. */
+function safeParse<T>(raw: string | null, fallback: T): T {
+  if (raw === null) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Sum input+output across a tokens_by_model blob. null (unavailable) stays null; corrupt -> null (never fake 0). */
+function sumTokens(raw: string | null): number | null {
+  if (raw === null) return null;
+  let parsed: Record<string, { input: number; output: number }>;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  let sum = 0;
+  for (const v of Object.values(parsed)) sum += (v?.input ?? 0) + (v?.output ?? 0);
+  return sum;
+}
+
 export interface AgentRow {
   fingerprint: string;
   name: string;
@@ -74,10 +98,10 @@ export function listAgents(db: Database.Database, opts: { includeSubagents?: boo
       let anyAvailable = false;
       for (const t of tokenRows) {
         if (t.tokens_by_model === null) continue;
+        let parsed: any;
+        try { parsed = JSON.parse(t.tokens_by_model); } catch { continue; } // corrupt blob -> skip, never 500
         anyAvailable = true;
-        for (const v of Object.values(JSON.parse(t.tokens_by_model)) as any[]) {
-          tokens30d += v.input + v.output;
-        }
+        for (const v of Object.values(parsed) as any[]) tokens30d += v.input + v.output;
       }
       if (!anyAvailable && tokenRows.length > 0) tokens30d = null;
       // catalog-only connector agents have NO token telemetry by design —
@@ -140,11 +164,8 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
       startedAt: r.started_at,
       endedAt: r.ended_at,
       status: r.status,
-      models: JSON.parse(r.models),
-      tokens:
-        r.tokens_by_model === null
-          ? null
-          : (Object.values(JSON.parse(r.tokens_by_model)) as any[]).reduce((s, t) => s + t.input + t.output, 0),
+      models: safeParse(r.models, []), // corrupt models blob -> [], never crash the detail view
+      tokens: sumTokens(r.tokens_by_model),
     })),
   };
 }
@@ -269,6 +290,7 @@ export function recentActivity(db: Database.Database, limit = 60): {
   runId: string; agentName: string; vendor: string; trigger: string; machine: string;
   startedAt: string; endedAt: string | null; status: string; tokens: number | null; isSubagent: boolean;
 }[] {
+  const safeLimit = Math.min(500, Math.max(1, Math.floor(limit) || 60)); // clamp: -1 means "no limit" in SQLite
   const machines = new Map((db.prepare(`SELECT id,label FROM machines`).all() as any[]).map((m) => [m.id, m.label]));
   const rows = db
     .prepare(
@@ -277,13 +299,9 @@ export function recentActivity(db: Database.Database, limit = 60): {
        FROM runs r JOIN agents a ON a.fingerprint = r.agent_fingerprint
        WHERE r.started_at IS NOT NULL ORDER BY r.started_at DESC LIMIT ?`,
     )
-    .all(limit) as any[];
+    .all(safeLimit) as any[];
   return rows.map((r) => {
-    let tokens: number | null = null;
-    if (r.tokens_by_model !== null) {
-      try { tokens = (Object.values(JSON.parse(r.tokens_by_model)) as any[]).reduce((s, t) => s + t.input + t.output, 0); }
-      catch { tokens = null; }
-    }
+    const tokens = sumTokens(r.tokens_by_model);
     return {
       runId: r.id, agentName: r.display_name, vendor: r.vendor, trigger: r.trigger_source,
       machine: machines.get(r.machine_id) ?? '—', startedAt: r.started_at, endedAt: r.ended_at,

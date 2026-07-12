@@ -36,6 +36,18 @@ function snapshot() {
   };
 }
 
+/** Open a db handle, run fn, and ALWAYS close it — even if fn throws. Prevents handle leaks. */
+function withDb<T>(fn: (db: ReturnType<typeof openDb>) => T): T {
+  const db = openDb(DEFAULT_DB);
+  try {
+    return fn(db);
+  } finally {
+    db.close();
+  }
+}
+
+const MAX_BODY = 64 * 1024; // reject POST bodies larger than 64KB — a local client can't exhaust memory
+
 const server = createServer((req, res) => {
   const send = (code: number, body: unknown, type = 'application/json') => {
     res.writeHead(code, { 'content-type': type });
@@ -43,55 +55,27 @@ const server = createServer((req, res) => {
   };
   try {
     if (req.url === '/api/fleet') return send(200, snapshot());
-    if (req.url === '/api/insights') {
-      const db = openDb(DEFAULT_DB);
-      const insights = computeInsights(db);
-      db.close();
-      return send(200, insights);
-    }
-    if (req.url === '/api/activity') {
-      const db = openDb(DEFAULT_DB);
-      const a = recentActivity(db, 80);
-      db.close();
-      return send(200, { runs: a });
-    }
-    if (req.url === '/api/analytics') {
-      const db = openDb(DEFAULT_DB);
-      const a = computeAnalytics(db);
-      db.close();
-      return send(200, a);
-    }
-    if (req.url === '/api/lineage') {
-      const db = openDb(DEFAULT_DB);
-      const out = { summary: lineageSummary(db), roots: topLineageRoots(db, 25) };
-      db.close();
-      return send(200, out);
-    }
+    if (req.url === '/api/insights') return send(200, withDb((db) => computeInsights(db)));
+    if (req.url === '/api/activity') return send(200, { runs: withDb((db) => recentActivity(db, 80)) });
+    if (req.url === '/api/analytics') return send(200, withDb((db) => computeAnalytics(db)));
+    if (req.url === '/api/lineage')
+      return send(200, withDb((db) => ({ summary: lineageSummary(db), roots: topLineageRoots(db, 25) })));
     if (req.url?.startsWith('/api/lineage/tree')) {
       const runId = new URL(req.url, 'http://x').searchParams.get('run') || '';
-      const db = openDb(DEFAULT_DB);
-      const tree = lineageTree(db, runId, 8);
-      db.close();
+      const tree = withDb((db) => lineageTree(db, runId, 8));
       return tree ? send(200, tree) : send(404, { error: 'no lineage for run ' + runId });
     }
     if (req.url?.startsWith('/api/agent')) {
       const name = new URL(req.url, 'http://x').searchParams.get('name') || '';
-      const db = openDb(DEFAULT_DB);
       try {
-        const detail = agentDetail(db, name);
-        return send(200, detail);
+        return send(200, withDb((db) => agentDetail(db, name)));
       } catch (e) {
         return send(404, { error: e instanceof Error ? e.message : String(e) });
-      } finally {
-        db.close();
       }
     }
     if (req.url === '/api/ai' || req.url === '/llms.txt') {
       // AI-discovery surface: full fleet report as markdown for ANY assistant
-      const db = openDb(DEFAULT_DB);
-      const r = buildReport(db);
-      db.close();
-      return send(200, r.markdown, 'text/markdown; charset=utf-8');
+      return send(200, withDb((db) => buildReport(db).markdown), 'text/markdown; charset=utf-8');
     }
     // State-changing POSTs: reject cross-origin so a random web page the user
     // has open can't blind-POST to localhost (loopback bind alone doesn't stop that).
@@ -105,8 +89,18 @@ const server = createServer((req, res) => {
     if (req.url === '/api/check' && req.method === 'POST') return send(200, runCheck(DEFAULT_DB));
     if ((req.url === '/api/tag' || req.url === '/api/untag') && req.method === 'POST') {
       let body = '';
-      req.on('data', (c) => (body += c));
+      let aborted = false;
+      req.on('data', (c) => {
+        if (aborted) return;
+        body += c;
+        if (body.length > MAX_BODY) { // stop buffering a runaway body
+          aborted = true;
+          send(413, { error: 'request body too large' });
+          req.destroy();
+        }
+      });
       req.on('end', () => {
+        if (aborted) return;
         try {
           const { agent, tag } = JSON.parse(body || '{}');
           if (!agent || !tag) return send(400, { error: 'agent and tag required' });

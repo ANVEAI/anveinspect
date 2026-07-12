@@ -44,25 +44,28 @@ export interface TokenCounts {
 
 export interface CostResult {
   usd: number;
-  priced: boolean; // false if the model had no rate (usd stays 0)
+  priced: boolean; // true if AT LEAST one model had a rate (usd reflects only priced models)
+  partial: boolean; // true if SOME models were priced and some were not — usd is an undercount
 }
 
-/** Cost of one run's tokens-by-model. Missing rates → priced:false, never a fake number. */
+/** Cost of one run's tokens-by-model. Missing rates → priced:false, never a fake number.
+ *  A run mixing known + unknown models is flagged partial so its undercount isn't invisible. */
 export function costOf(tokensByModel: Record<string, TokenCounts> | null, rates = DEFAULT_RATES): CostResult {
-  if (!tokensByModel) return { usd: 0, priced: false };
+  if (!tokensByModel) return { usd: 0, priced: false, partial: false };
   let usd = 0;
-  let anyPriced = false;
+  let pricedModels = 0;
+  let unpricedModels = 0;
   for (const [model, t] of Object.entries(tokensByModel)) {
     const rate = rates[model];
-    if (!rate) continue; // unknown model: contributes 0, flagged via priced=false below
-    anyPriced = true;
+    if (!rate) { unpricedModels++; continue; } // unknown model: contributes 0
+    pricedModels++;
     usd +=
       (t.input / 1e6) * rate.input +
       (t.output / 1e6) * rate.output +
       (t.cacheRead / 1e6) * (rate.cacheRead ?? rate.input * 0.1) +
       (t.cacheCreation / 1e6) * (rate.cacheWrite ?? rate.input * 1.25);
   }
-  return { usd, priced: anyPriced };
+  return { usd, priced: pricedModels > 0, partial: pricedModels > 0 && unpricedModels > 0 };
 }
 
 export function fmtUsd(n: number): string {

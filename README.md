@@ -51,13 +51,43 @@ becomes your fleet operator. Ask it: *"connect my platforms"* → `/anveinspect:
 *"how's my fleet?"* → a full briefing; *"watch my nightly agent, it runs at 3am"* →
 it declares the cadence and the next silent failure pages you.
 
-- **13 MCP tools** (`fleet_setup`, `fleet_status`, `fleet_attention`, `fleet_agents`,
+- **16 MCP tools** — `fleet_setup`, `fleet_status`, `fleet_attention`, `fleet_agents`,
   `fleet_agent_detail`, `fleet_scan`, `fleet_declare_cadence`, `fleet_check`,
-  `fleet_ack`, `fleet_report`, `fleet_insights`, `fleet_connectors_sync`,
-  `fleet_connectors_status`) — zod-validated, structured output, read-only annotations.
+  `fleet_ack`, `fleet_report`, `fleet_insights`, `fleet_lineage`, `fleet_analytics`,
+  `fleet_tag`, `fleet_connectors_sync`, `fleet_connectors_status` — zod-validated,
+  structured output, read-only annotations.
 - **Skill** `fleet-ops` + slash commands `/anveinspect:setup`, `:status`, `:scan`,
   `:attention`, `:watch`, `:brief`.
 - **Hooks** capture live run events for crash detection and trigger classification.
+
+## Dashboard (enterprise control plane)
+
+Six views (`npm run dash` → http://localhost:4177):
+
+- **Overview** — KPIs (agents, alerts, stale, tokens, est. cost), token-usage trend,
+  agents-by-platform, estimated-cost breakdown (by model + most-expensive agents),
+  activity-by-hour, top consumers.
+- **Agents** — full inventory: live search, vendor/status filters, sortable columns,
+  inline tag chips; click any row for the **detail drawer** (runs, cadence, token
+  sparkline, run-history timeline, tag editor).
+- **Activity** — live chronological feed of runs across every platform.
+- **Lineage** — spawn-tree explorer: what spawned what, with subtree tokens and
+  descendant counts (click a root to expand the tree).
+- **Attention** — open alerts (with Ack) + stale agents.
+- **Connectors** — per-platform plug-and-play health.
+
+## Insights & cost
+
+`anveinspect insights` (analytics JSON), `anveinspect costs` (estimated 30-day spend
+by model / agent, busiest hours, failure bursts). Cost estimates come from an editable
+`~/.anveinspect/pricing.json`; **token counts are exact, dollars are estimates**, and
+every result reports priced/unpriced/tokenless coverage.
+
+## Control
+
+`anveinspect tag add|remove|list <agent> <tag>` — organize the fleet with local
+tags/groups (cohort, tier, owner, "retire"). Purely local metadata: never touches a
+platform or changes agent behavior.
 
 ## Silent-failure alerting (the wedge)
 

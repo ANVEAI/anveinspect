@@ -63,3 +63,26 @@ what's running, why, agent insights, and control, in a single dashboard.
   (add/remove chips) + inline tag chips in agent list.
 - verified live: tagged voice-forms #critical #production, chips render in table
   + drawer, add/remove works. 71 tests green (4 new). Cleaned demo tags after.
+
+### Cycle 6 (adversarial hardening pass) — DONE
+- Ran a Codex adversarial review of all Cycle 1-5 modules. It found 9 valid issues;
+  fixed 8, documented 1 as a known limitation.
+- Crash guards (P2): unguarded JSON.parse in listAgents + agentDetail (one corrupt
+  token/models blob -> 500) now safeParse/sumTokens -> null/[] fallback. analytics
+  new Date(NaN).toISOString() throw (one bad started_at broke /api/analytics) now
+  guards NaN before pushing/formatting.
+- Missing-table (P2): agent_tags write path CREATE IF NOT EXISTS; read paths return
+  empty when the table predates the migration (read-only handle can't create it).
+- Cost honesty (P2): mixed known+unknown model runs were reported fully priced with
+  the unknown cost silently dropped. costOf now returns partial:true and analytics
+  surfaces partiallyPricedRuns. LIVE fleet had 2 such runs — real undercount, now visible.
+- Perf/DoS (P2/P3): lineage child query LIMIT 500 in SQL (was slice-after-load);
+  recentActivity clamps limit (-1 = no-limit in SQLite); dashboard withDb() closes
+  every handle even on throw (was leaking on error); POST body cap 64KB -> 413.
+- Known limitation (P3, not fixed): lineage multi-parent DAG edges undercount a
+  shared child. Claude/Codex spawns form a tree (one parent per subagent run); the
+  seen-set is a correct cycle guard. True multi-parent rendering is a design change
+  that risks exponential blowup, not a bug fix.
+- verified: typecheck clean, 76 tests green (+5: partial-pricing + 4 hardening
+  regressions). All endpoints 200; tag round-trip, 413 body cap, 403 cross-origin
+  all confirmed live. README updated with dashboard/insights/control sections.
