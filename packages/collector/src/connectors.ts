@@ -88,6 +88,10 @@ export async function syncConnectors(
       if (opts.only && !opts.only.includes(vendor)) continue;
       const isLocal = vendor === 'openclaw' || vendor === 'hermes';
       let raw = file[vendor];
+      // An empty/placeholder entry ({} or all-blank values, e.g. from `connectors init`)
+      // is NOT a config — treating it as one sends garbage ids to the platform API.
+      const effectivelyEmpty = raw !== undefined && Object.values(raw).every((v) => v === '' || v == null);
+      if (effectivelyEmpty) raw = undefined;
       // Plug-and-play: cloud vendors with no config (or auth:"cli") resolve
       // credentials from the platform's own CLI session — no key-pasting.
       if (!isLocal && (!raw || raw.auth === 'cli')) {

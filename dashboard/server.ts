@@ -120,6 +120,8 @@ const server = createServer((req, res) => {
       const id = decodeURIComponent(req.url.slice('/api/ack/'.length));
       return send(200, { acked: ackAlert(DEFAULT_DB, id), id });
     }
+    // unknown API path -> JSON 404 (never HTML — a typo'd script call should fail loudly)
+    if (req.url?.startsWith('/api/')) return send(404, { error: `unknown API route ${req.url}` });
     return send(200, readFileSync(join(__dirname, 'index.html'), 'utf8'), 'text/html');
   } catch (err) {
     return send(500, { error: err instanceof Error ? err.message : String(err) });

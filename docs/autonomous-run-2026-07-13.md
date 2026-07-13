@@ -141,3 +141,26 @@ what's running, why, agent insights, and control, in a single dashboard.
 - verified live: voice-forms→workflow-subagent = 1061 spawns / 21.4M tok / 4.2M ch
   down / 2.0M ch up; subagents 2 active / 7 idle / 12 stale of 21; Gantt shows
   main-agent bar vs subagent burst windows. 84 tests green (+5), no console errors.
+
+### Cycle 10 (extensive real-user QA) — DONE (user-requested)
+Tested every surface like a new user. 4 real bugs found and FIXED, all with regressions:
+- T1 fresh install: doctor on an empty ANVEINSPECT_DB → full fleet (146 agents,
+  1683 runs, all 1340 payload edges) from a cold scan. PASS.
+- T2 CLI surface: 16/16 commands pass incl. --json (all parse). PASS.
+- T3 bad inputs: 5/6 clean actionable errors. BUG 1: `ack <typo-id>` silently
+  succeeded → now exits non-zero with guidance (+e2e regression).
+- T4 MCP: 16/16 tools pass. BUG 2: fleet_agent_detail used param `name` while
+  sibling tools use `agent` — operators guess wrong → standardized on `agent`.
+- T5 dashboard walkthrough: search (146→1), vendor filter (hermes=63), status
+  filter (stale=8), token sort, drawer, tag add/remove round-trip, activity feed,
+  attention+ack button, connectors cards, timeline root switch (12 options),
+  refresh, /llms.txt. All PASS. BUG 3: unknown /api/* routes returned HTML 200
+  → now JSON 404. Path-traversal + XSS-ish params already clean 404s.
+- T6 trust: CLI vs dashboard vs MCP report IDENTICAL pulse (146/1/8). PASS.
+- T7 live connector sync: openclaw 38 + hermes 63 + vertex 0 (correct) PASS.
+  BUG 4 (live-API catch): empty `cloudflare: {}` entry from `connectors init`
+  bypassed plug-and-play CLI resolution and called the real CF API with
+  accountId=undefined → HTTP 404. Empty configs now fall through to CLI path →
+  honest "needs a Workers Scripts:Read token" hint (+deterministic regression).
+- Hygiene: real fleet DB untouched (0 leftover tags/cadences); QA ran on an
+  isolated scratchpad DB. 86 tests green (+2), typecheck clean.

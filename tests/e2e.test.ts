@@ -112,4 +112,15 @@ describe('e2e: operator lifecycle through the CLI', () => {
     }
     expect(threw).toBe(true);
   });
+
+  it('ack with a typo´d alert id exits non-zero (a typo must never look like success)', () => {
+    let threw = false;
+    try {
+      execFileSync('npx', ['tsx', CLI, 'ack', 'no-such-alert'], { env, encoding: 'utf8', stdio: 'pipe' });
+    } catch (e: any) {
+      threw = true;
+      expect(String(e.stderr)).toContain('no open alert');
+    }
+    expect(threw).toBe(true);
+  });
 });

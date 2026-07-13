@@ -169,7 +169,9 @@ try {
       const id = args[1];
       if (!id) throw new Error('usage: anveinspect ack <alert-id>');
       const ok = ackAlert(DEFAULT_DB, id);
-      out({ acked: ok, id }, () => (ok ? `acked ${id}` : `no open alert with id ${id}`));
+      // a typo'd id must not look like success — exit non-zero so scripts catch it too
+      if (!ok) throw new Error(`no open alert with id "${id}". List open alerts with: anveinspect status`);
+      out({ acked: true, id }, () => `acked ${id}`);
       break;
     }
     case 'report': {

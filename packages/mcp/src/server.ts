@@ -144,13 +144,14 @@ server.registerTool(
   {
     title: 'Agent detail',
     description: 'Deep-dive one agent by display name or fingerprint: recent runs with status and tokens, declared cadence, subagent spawn count.',
-    inputSchema: { name: z.string().min(1).describe('Agent display name (e.g. "voice-forms") or fingerprint') },
+    // param is "agent" for consistency with fleet_declare_cadence / fleet_tag — operators guess one name
+    inputSchema: { agent: z.string().min(1).describe('Agent display name (e.g. "voice-forms") or fingerprint') },
     annotations: { readOnlyHint: true, openWorldHint: false },
   },
-  async ({ name }) =>
+  async ({ agent }) =>
     guard(() => {
       const db = openDb();
-      const d = agentDetail(db, name);
+      const d = agentDetail(db, agent);
       db.close();
       return ok(
         d,

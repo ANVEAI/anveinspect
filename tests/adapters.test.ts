@@ -111,3 +111,20 @@ describe('openclawAdapter (local collector)', () => {
     expect(r.agents.every((a) => a.lastModifiedAt !== null)).toBe(true);
   });
 });
+
+describe('syncConnectors empty-config handling', () => {
+  it('an empty/placeholder connectors.json entry is NOT a config — adapter never runs with garbage', async () => {
+    const { syncConnectors } = await import('../packages/collector/src/connectors.js');
+    const dir = mkdtempSync(join(tmpdir(), 'conn-'));
+    const dbPath = join(dir, 'fleet.db');
+    const connectorsPath = join(dir, 'connectors.json');
+    // the exact state `connectors init` used to leave behind (caused a live HTTP 404 with accountId=undefined)
+    writeFileSync(connectorsPath, JSON.stringify({ foundry: { endpoint: '', apiKey: '' } }));
+    const ctx = fakeFetch(() => { throw new Error('adapter must not be called with an empty config'); });
+    const out = await syncConnectors(dbPath, { only: ['foundry'], connectorsPath, ctx });
+    expect(out).toHaveLength(1);
+    expect(out[0]!.configured).toBe(false); // "not connected yet", with a signin hint
+    expect(out[0]!.error).toBeNull();
+    expect(out[0]!.hint).toMatch(/explicit config/);
+  });
+});
