@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree, agentDetail, computeAnalytics, recentActivity, addTag, removeTag } from '@anveinspect/collector';
+import { DEFAULT_DB, openDb, listAgents, fleetStatus, ackAlert, runCheck, connectorStatus, buildReport, computeInsights, lineageSummary, topLineageRoots, lineageTree, agentGraph, agentDetail, computeAnalytics, recentActivity, addTag, removeTag } from '@anveinspect/collector';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT ?? 4177);
@@ -60,6 +60,7 @@ const server = createServer((req, res) => {
     if (req.url === '/api/analytics') return send(200, withDb((db) => computeAnalytics(db)));
     if (req.url === '/api/lineage')
       return send(200, withDb((db) => ({ summary: lineageSummary(db), roots: topLineageRoots(db, 25) })));
+    if (req.url === '/api/graph') return send(200, withDb((db) => agentGraph(db)));
     if (req.url?.startsWith('/api/lineage/tree')) {
       const runId = new URL(req.url, 'http://x').searchParams.get('run') || '';
       const tree = withDb((db) => lineageTree(db, runId, 8));

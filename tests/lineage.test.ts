@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { FleetStore } from '../packages/collector/src/store.js';
-import { lineageTree, topLineageRoots, lineageSummary } from '../packages/collector/src/lineage.js';
+import { lineageTree, topLineageRoots, lineageSummary, agentGraph } from '../packages/collector/src/lineage.js';
 
 function seed() {
   const path = join(mkdtempSync(join(tmpdir(), 'lin-')), 'fleet.db');
@@ -51,6 +51,43 @@ describe('lineageTree', () => {
     const s = seed();
     expect(lineageTree(s.db, 'nope', 8)).toBeNull();
     s.close();
+  });
+});
+
+describe('agentGraph', () => {
+  it('collapses run-level spawn edges onto agent identities with counts', () => {
+    const s = seed();
+    const g = agentGraph(s.db);
+    s.close();
+    expect(g.nodes).toHaveLength(2); // root-session + general-purpose
+    expect(g.truncated).toBe(false);
+    // root->c1 and root->c2 collapse to ONE agent edge with spawns=2; c1->g1 is sub->sub (self edge)
+    const rootToSub = g.edges.find((e) => e.source === 'fp-root' && e.target === 'fp-sub')!;
+    expect(rootToSub.spawns).toBe(2);
+    const subToSub = g.edges.find((e) => e.source === 'fp-sub' && e.target === 'fp-sub')!;
+    expect(subToSub.spawns).toBe(1); // same-agent spawn is a real relationship (self loop)
+    const root = g.nodes.find((n) => n.fingerprint === 'fp-root')!;
+    expect(root.spawnsOut).toBe(2);
+    expect(root.spawnsIn).toBe(0);
+    const sub = g.nodes.find((n) => n.fingerprint === 'fp-sub')!;
+    expect(sub.spawnsIn).toBe(3); // spawned twice by root + once by itself
+  });
+
+  it('caps edges and reports truncation instead of returning a hairball', () => {
+    const s = seed();
+    const g = agentGraph(s.db, 1); // force the cap below the real edge count
+    s.close();
+    expect(g.edges).toHaveLength(1);
+    expect(g.truncated).toBe(true);
+    expect(g.edges[0]!.spawns).toBe(2); // keeps the HEAVIEST relationship
+  });
+
+  it('returns an empty graph when there are no spawns', () => {
+    const path = join(mkdtempSync(join(tmpdir(), 'nog-')), 'fleet.db');
+    const s = new FleetStore(path);
+    const g = agentGraph(s.db);
+    s.close();
+    expect(g).toEqual({ nodes: [], edges: [], truncated: false });
   });
 });
 

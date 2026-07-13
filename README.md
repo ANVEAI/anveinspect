@@ -71,8 +71,11 @@ Six views (`npm run dash` → http://localhost:4177):
   inline tag chips; click any row for the **detail drawer** (runs, cadence, token
   sparkline, run-history timeline, tag editor).
 - **Activity** — live chronological feed of runs across every platform.
-- **Lineage** — spawn-tree explorer: what spawned what, with subtree tokens and
-  descendant counts (click a root to expand the tree).
+- **Lineage** — the **agent relationship graph** (interactive force layout: who
+  spawns whom across all executions, node size = run volume, edge weight + arrow =
+  spawn direction and count, drag/hover/click-through) plus the spawn-tree explorer
+  for single executions (click a root to expand, with subtree tokens and descendant
+  counts).
 - **Attention** — open alerts (with Ack) + stale agents.
 - **Connectors** — per-platform plug-and-play health.
 

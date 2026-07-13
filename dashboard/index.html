@@ -206,6 +206,11 @@ tbody tr:last-child td{border-bottom:none}
 .skel{background:linear-gradient(90deg,var(--surface2) 25%,var(--elevated) 37%,var(--surface2) 63%);background-size:400% 100%;animation:sk 1.3s infinite;border-radius:6px}
 @keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
 .allclear{display:flex;align-items:center;gap:10px;padding:16px 18px;color:var(--ok);font-size:13.5px}
+.graph-canvas{width:100%;height:470px;display:block;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--line-soft);cursor:grab}
+.graph-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.graph-legend .gl{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim)}
+.graph-legend .gl i{width:9px;height:9px;border-radius:99px;display:inline-block}
+.graph-legend .gl-hint{margin-left:auto;font-size:11px;color:var(--faint)}
 
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 @media(max-width:720px){.app{grid-template-columns:1fr}.rail{display:none}}
@@ -250,7 +255,7 @@ const fmt = n => n==null?null : n>=1e6?(n/1e6).toFixed(1)+'M' : n>=1e3?Math.roun
 const rel = iso => { if(!iso) return '—'; const s=(Date.now()-Date.parse(iso))/1000;
   if(s<3600)return Math.max(1,Math.round(s/60))+'m ago'; if(s<86400)return Math.round(s/3600)+'h ago'; return Math.round(s/86400)+'d ago'; };
 
-let FLEET=null, INSIGHTS=null, LINEAGE=null, ANALYTICS=null;
+let FLEET=null, INSIGHTS=null, LINEAGE=null, ANALYTICS=null, GRAPH=null;
 const state = { agentSearch:'', agentVendor:'all', agentStatus:'all', sortKey:'lastRunAt', sortDir:-1 };
 
 async function load(){
@@ -531,7 +536,12 @@ function drawActivity(){
 }
 /* ── LINEAGE ──────────────────────────────────────────────────────────── */
 function renderLineage(page){
-  if(!LINEAGE){ page.appendChild(el('div','empty','Loading lineage…')); fetch('/api/lineage').then(r=>r.json()).then(l=>{LINEAGE=l;render();}); return; }
+  if(!LINEAGE||!GRAPH){
+    page.appendChild(el('div','empty','Loading lineage…'));
+    Promise.all([fetch('/api/lineage').then(r=>r.json()),fetch('/api/graph').then(r=>r.json())])
+      .then(([l,g])=>{LINEAGE=l;GRAPH=g;render();});
+    return;
+  }
   const s=LINEAGE.summary;
   const kpis=el('div','kpis');
   kpis.appendChild(kpiTile('Spawn edges', s.totalEdges, 'parent → child links'));
@@ -539,6 +549,12 @@ function renderLineage(page){
   kpis.appendChild(kpiTile('Max depth', s.maxDepth, 'deepest agent chain'));
   kpis.appendChild(kpiTile('Widest fan-out', s.widestFanout?s.widestFanout.children:'—', s.widestFanout?esc(s.widestFanout.agentName):'none'));
   page.appendChild(kpis);
+
+  // agent-to-agent relationship graph — the standing "who spawns whom" map
+  if(GRAPH.nodes.length){
+    const gt=el('div','section-title'); gt.textContent='Agent relationships — who spawns whom (all time)'; page.appendChild(gt);
+    page.appendChild(agentGraphCard());
+  }
 
   const st=el('div','section-title'); st.textContent='Spawns by platform'; page.appendChild(st);
   const pcard=el('div','card'); const pbd=el('div','bd');
@@ -580,6 +596,135 @@ function treeNode(n,depth){
     wrap.appendChild(kids);
   }
   return wrap;
+}
+
+/* ── AGENT RELATIONSHIP GRAPH (canvas force layout, zero deps) ─────────── */
+const GRAPH_COLORS={claude_code:'#3ecf8e',codex:'#5b9dff',openclaw:'#ffb454',hermes:'#c792ea',bedrock:'#ff9d76',vertex:'#7ee0d2',foundry:'#8fa8ff',cloudflare:'#f6821f'};
+function agentGraphCard(){
+  const c=el('div','card');
+  c.innerHTML=`<div class="hd"><h3>Relationship graph</h3><span class="meta">${GRAPH.nodes.length} agents · ${GRAPH.edges.length} relationships${GRAPH.truncated?' · heaviest shown':''} · node size = run volume · arrow = spawns</span></div>`;
+  const bd=el('div','bd');
+  const legend=el('div','graph-legend');
+  [...new Set(GRAPH.nodes.map(n=>n.vendor))].forEach(v=>{
+    const s=el('span','gl'); s.innerHTML=`<i style="background:${GRAPH_COLORS[v]||'#9aa7b8'}"></i>${esc(VENDOR_LABEL[v]||v)}`; legend.appendChild(s);
+  });
+  const hint=el('span','gl-hint'); hint.textContent='drag to arrange · hover for detail · click for the agent drawer'; legend.appendChild(hint);
+  bd.appendChild(legend);
+  const canvas=document.createElement('canvas'); canvas.className='graph-canvas'; bd.appendChild(canvas);
+  c.appendChild(bd);
+  requestAnimationFrame(()=>initGraph(canvas)); // wait for layout so clientWidth is real
+  return c;
+}
+function initGraph(canvas){
+  const W=canvas.clientWidth||900, H=470;
+  const dpr=window.devicePixelRatio||1;
+  canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
+  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const maxRuns=Math.max(1,...GRAPH.nodes.map(n=>n.runs));
+  // seed on a circle (stable start), then let the forces settle it
+  const N=GRAPH.nodes.map((n,i)=>({...n,
+    x:W/2+Math.cos(i/GRAPH.nodes.length*2*Math.PI)*Math.min(W,H)*.33,
+    y:H/2+Math.sin(i/GRAPH.nodes.length*2*Math.PI)*Math.min(W,H)*.33,
+    vx:0,vy:0, r:7+Math.round(14*Math.sqrt(n.runs/maxRuns))}));
+  const idx={}; N.forEach((n,i)=>idx[n.fingerprint]=i);
+  const selfLoops={}; // agent spawning its own kind — drawn as a loop arc, not a zero-length line
+  const E=GRAPH.edges.map(e=>({s:idx[e.source],t:idx[e.target],spawns:e.spawns,w:1+Math.min(4.5,Math.log2(e.spawns+1)*.9)}))
+    .filter(e=>{
+      if(e.s==null||e.t==null)return false;
+      if(e.s===e.t){selfLoops[e.s]=(selfLoops[e.s]||0)+e.spawns;return false;}
+      return true;
+    });
+  let alpha=1, drag=null, hover=null, down=null;
+  function tick(){
+    for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){ // O(n²) repulsion — edges are capped, this stays small
+      const a=N[i],b=N[j]; let dx=a.x-b.x,dy=a.y-b.y; const d2=dx*dx+dy*dy||1; const d=Math.sqrt(d2);
+      const rep=Math.min(9,7800/d2); dx/=d; dy/=d; // strong short-range push so labels don't collide
+      a.vx+=dx*rep; a.vy+=dy*rep; b.vx-=dx*rep; b.vy-=dy*rep;
+    }
+    for(const e of E){ // springs pull connected agents to a rest distance
+      const a=N[e.s],b=N[e.t]; let dx=b.x-a.x,dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||1;
+      const f=(d-(120+a.r+b.r))*.012; dx/=d; dy/=d;
+      a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
+    }
+    for(const n of N){ // gentle gravity + damping + bounds
+      n.vx+=(W/2-n.x)*.004; n.vy+=(H/2-n.y)*.004;
+      n.vx*=.85; n.vy*=.85;
+      n.x=Math.max(n.r+6,Math.min(W-n.r-6,n.x+n.vx*alpha));
+      n.y=Math.max(n.r+6,Math.min(H-n.r-24,n.y+n.vy*alpha));
+    }
+    for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){ // hard separation so labels never sit on a neighbor
+      const a=N[i],b=N[j]; let dx=b.x-a.x,dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||1;
+      const min=a.r+b.r+30;
+      if(d<min){const push=(min-d)/2; dx/=d; dy/=d; a.x-=dx*push; a.y-=dy*push; b.x+=dx*push; b.y+=dy*push;}
+      // label declutter: labels sit below nodes — if two baselines nearly align, force horizontal room
+      const by=(b.y+b.r)-(a.y+a.r);
+      if(Math.abs(by)<17){
+        const gap=b.x-a.x, need=118;
+        if(Math.abs(gap)<need){const push=(need-Math.abs(gap))*.18, s=gap>=0?1:-1; a.x-=s*push; b.x+=s*push;}
+      }
+    }
+  }
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    for(const e of E){
+      const a=N[e.s],b=N[e.t];
+      const hi=hover!==null&&(hover===e.s||hover===e.t);
+      let dx=b.x-a.x,dy=b.y-a.y; const d=Math.sqrt(dx*dx+dy*dy)||1; dx/=d; dy/=d;
+      const x1=a.x+dx*a.r,y1=a.y+dy*a.r,x2=b.x-dx*(b.r+8),y2=b.y-dy*(b.r+8);
+      ctx.strokeStyle=hi?'rgba(91,157,255,.9)':'rgba(140,160,190,.26)';
+      ctx.lineWidth=e.w;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      ctx.fillStyle=ctx.strokeStyle; // arrowhead: direction = who spawned whom
+      ctx.beginPath(); ctx.moveTo(x2+dx*8,y2+dy*8); ctx.lineTo(x2-dy*4,y2+dx*4); ctx.lineTo(x2+dy*4,y2-dx*4); ctx.closePath(); ctx.fill();
+      if(e.spawns>=5||hi){
+        ctx.fillStyle=hi?'rgba(232,237,244,.95)':'rgba(154,167,184,.7)';
+        ctx.font='10px ui-monospace,monospace';
+        ctx.fillText(e.spawns+'×',(x1+x2)/2+5,(y1+y2)/2-5);
+      }
+    }
+    N.forEach((n,i)=>{
+      const col=GRAPH_COLORS[n.vendor]||'#9aa7b8';
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,6.2832);
+      ctx.fillStyle=col+(hover===i?'40':'22'); ctx.fill();
+      ctx.lineWidth=hover===i?2.4:1.5; ctx.strokeStyle=col; ctx.stroke();
+      if(selfLoops[i]){ // "spawns its own kind" loop arc at the node's top-right
+        ctx.beginPath(); ctx.arc(n.x+n.r*.85,n.y-n.r*.85,5.5,-.6,4.2);
+        ctx.lineWidth=1.4; ctx.strokeStyle=col; ctx.stroke();
+        ctx.fillStyle='rgba(154,167,184,.85)'; ctx.font='9px ui-monospace,monospace';
+        ctx.fillText(selfLoops[i]+'×',n.x+n.r*.85+8,n.y-n.r*.85-3);
+      }
+      ctx.fillStyle=hover===i?'#e8edf4':'#9aa7b8';
+      ctx.font=(hover===i?'600 ':'')+'11px ui-monospace,monospace';
+      ctx.textAlign='center';
+      const label=n.name.length>18?n.name.slice(0,17)+'…':n.name;
+      ctx.fillText(label,n.x,n.y+n.r+13);
+      ctx.textAlign='left';
+    });
+  }
+  (function loop(){
+    if(!canvas.isConnected)return; // view navigated away — stop the sim, free the frame
+    if(alpha>.02||drag!==null){tick(); alpha*=.996;}
+    draw();
+    requestAnimationFrame(loop);
+  })();
+  const pos=ev=>{const r=canvas.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top};};
+  const at=p=>{for(let i=N.length-1;i>=0;i--){const n=N[i],dx=p.x-n.x,dy=p.y-n.y;if(dx*dx+dy*dy<=(n.r+5)*(n.r+5))return i;}return null;};
+  canvas.onmousedown=ev=>{const p=pos(ev);const i=at(p);if(i!==null){drag=i;down=p;canvas.style.cursor='grabbing';}};
+  canvas.onmousemove=ev=>{
+    const p=pos(ev);
+    if(drag!==null){N[drag].x=p.x;N[drag].y=p.y;N[drag].vx=0;N[drag].vy=0;alpha=Math.max(alpha,.3);hideTip();return;}
+    const i=at(p); hover=i; canvas.style.cursor=i!==null?'pointer':'grab';
+    if(i!==null){const n=N[i];showTip(ev,n.name,`${VENDOR_LABEL[n.vendor]||n.vendor} · ${fmt(n.runs)} runs · spawned others ${fmt(n.spawnsOut)}× · was spawned ${fmt(n.spawnsIn)}×`);}
+    else hideTip();
+  };
+  canvas.onmouseup=ev=>{
+    canvas.style.cursor='grab';
+    if(drag===null)return;
+    const p=pos(ev), moved=down?Math.hypot(p.x-down.x,p.y-down.y):99;
+    const i=drag; drag=null; down=null;
+    if(moved<4)openAgent(N[i].name); // a click, not a drag → open the detail drawer
+  };
+  canvas.onmouseleave=()=>{hover=null;drag=null;down=null;hideTip();canvas.style.cursor='grab';};
 }
 
 /* ── ATTENTION ────────────────────────────────────────────────────────── */

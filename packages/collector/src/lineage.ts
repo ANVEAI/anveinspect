@@ -151,6 +151,74 @@ export function topLineageRoots(db: Database.Database, limit = 20): { runId: str
   });
 }
 
+export interface AgentGraphNode {
+  fingerprint: string;
+  name: string;
+  vendor: string;
+  runs: number; // total recorded runs for this agent
+  spawnsOut: number; // times this agent spawned another agent
+  spawnsIn: number; // times this agent was spawned by another agent
+}
+
+export interface AgentGraphEdge {
+  source: string; // parent agent fingerprint
+  target: string; // child agent fingerprint
+  spawns: number; // how many parent-run -> child-run edges collapse into this pair
+  lastSpawnAt: string | null;
+}
+
+export interface AgentGraph {
+  nodes: AgentGraphNode[];
+  edges: AgentGraphEdge[];
+  truncated: boolean; // true if edges were capped — the graph shows the heaviest relationships
+}
+
+/** Agent-to-agent relationship graph: collapse run-level spawn edges onto agent
+ *  identities. This is the "who works with whom" view — run trees show one
+ *  execution; this shows the standing relationships across ALL executions. */
+export function agentGraph(db: Database.Database, maxEdges = 150): AgentGraph {
+  // one aggregate query: parent agent -> child agent with spawn counts
+  const rows = db
+    .prepare(
+      `SELECT pa.fingerprint AS pfp, ca.fingerprint AS cfp,
+              COUNT(*) AS spawns, MAX(cr.started_at) AS last_spawn_at
+       FROM spawns s
+       JOIN runs pr ON pr.id = s.parent_run_id
+       JOIN runs cr ON cr.id = s.child_run_id
+       JOIN agents pa ON pa.fingerprint = pr.agent_fingerprint
+       JOIN agents ca ON ca.fingerprint = cr.agent_fingerprint
+       GROUP BY pa.fingerprint, ca.fingerprint
+       ORDER BY spawns DESC`,
+    )
+    .all() as any[];
+  const truncated = rows.length > maxEdges;
+  const kept = rows.slice(0, maxEdges); // keep the heaviest relationships, never an unrenderable hairball
+  const fps = new Set<string>();
+  for (const e of kept) { fps.add(e.pfp); fps.add(e.cfp); }
+  if (fps.size === 0) return { nodes: [], edges: [], truncated: false };
+  const placeholders = [...fps].map(() => '?').join(',');
+  const agentRows = db
+    .prepare(
+      `SELECT a.fingerprint, a.display_name, a.vendor,
+              (SELECT COUNT(*) FROM runs r WHERE r.agent_fingerprint = a.fingerprint) AS runs
+       FROM agents a WHERE a.fingerprint IN (${placeholders})`,
+    )
+    .all(...fps) as any[];
+  const nodes = new Map<string, AgentGraphNode>(
+    agentRows.map((a) => [a.fingerprint, { fingerprint: a.fingerprint, name: a.display_name, vendor: a.vendor, runs: a.runs, spawnsOut: 0, spawnsIn: 0 }]),
+  );
+  const edges: AgentGraphEdge[] = [];
+  for (const e of kept) {
+    const p = nodes.get(e.pfp);
+    const c = nodes.get(e.cfp);
+    if (!p || !c) continue; // agent row vanished mid-read — skip the edge, never crash
+    p.spawnsOut += e.spawns;
+    c.spawnsIn += e.spawns;
+    edges.push({ source: e.pfp, target: e.cfp, spawns: e.spawns, lastSpawnAt: e.last_spawn_at ?? null });
+  }
+  return { nodes: [...nodes.values()], edges, truncated };
+}
+
 export function lineageSummary(db: Database.Database): LineageSummary {
   const totalEdges = (db.prepare(`SELECT COUNT(*) AS n FROM spawns`).get() as any).n;
   const roots = db

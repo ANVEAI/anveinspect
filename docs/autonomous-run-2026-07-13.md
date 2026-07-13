@@ -110,3 +110,15 @@ what's running, why, agent insights, and control, in a single dashboard.
 - Final state: 76 tests green, typecheck clean, 16 MCP tools, 6 dashboard views,
   all endpoints 200, 2h continuous test passed. Product covers the full goal:
   what's running / why running / insights / control in one dashboard.
+
+### Cycle 8 (agent relationship graph) — DONE (user-requested)
+- agentGraph() in lineage.ts: collapses run-level spawn edges onto agent identities
+  (nodes = agents w/ runs/spawnsOut/spawnsIn, edges = who-spawns-whom w/ counts +
+  lastSpawnAt). Edge cap 150 w/ honest truncated flag. /api/graph endpoint.
+- Dashboard Lineage view: interactive canvas force-directed graph, zero deps.
+  Node size = run volume, color = platform (legend), edge width/label = spawn count,
+  arrowheads = direction, self-spawn loop arcs. Drag to arrange, hover tooltip
+  (runs/spawned/was-spawned), click -> agent drawer. Collision + label-declutter
+  passes so 22 labels stay readable; sim stops when the view unmounts.
+- verified live: 22 agents / 21 relationships, voice-forms hub (1061x -> workflow-
+  subagent), click-through to drawer works, no console errors. 79 tests green (+3).
