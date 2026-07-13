@@ -263,3 +263,23 @@ Adversarial test round beyond functional QA. 3 real bugs found + fixed w/ regres
 - LOAD: 5000 requests across 5 endpoints, 0 failures; RSS 85MB->54MB after GC
   (no leak); 0 leaked fleet.db handles (withDb holds under sustained load).
 - 100 tests green (+3), typecheck clean. Real fleet DB untouched (scratchpad DBs).
+
+### Cycle 15 (OSS professionalization + real-world UX) — DONE (user-requested)
+Made the repo a professional open-source project + tested real user journeys.
+- OSS scaffolding: CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, CHANGELOG, .editorconfig,
+  .nvmrc, .github issue forms + PR template, README badges + Contributing/Security/
+  License footer, package.json author/homepage/bugs.
+- Repo hygiene: untracked the two 60MB promo MP4s (marketing artifacts, kept on
+  disk + Desktop, gitignored) — heaviest tracked file dropped 40MB → 112KB.
+  Expanded .gitignore (video build outputs, editor dirs, logs, coverage).
+- REAL-WORLD TESTS: (a) upgrade path — legacy fleet.db (pre-tags, pre-payload-cols)
+  migrates on open, keeps all rows, lights up graph+tags, idempotent; new
+  tests/migration.test.ts. (b) publish path — bundle builds, bundled CLI + MCP run
+  standalone w/o tsx, npm pack ships right files. BUG 10: plugin .mcp.json hardcoded
+  tsx→mcp/src/server.ts which isn't in the tarball → added bin/mcp-launch.mjs
+  (dist-or-src) so an npm-installed plugin can start its MCP server.
+- 103 tests green (+3), typecheck clean. Commit 3bcaddd.
+- Git-watcher contention note: the desktop app's git integration + killed procs
+  left a stale index.lock; cleared it and committed with explicit paths +
+  GIT_OPTIONAL_LOCKS. Bulk `git add -A` hangs on the untracked video trees — use
+  explicit paths.
