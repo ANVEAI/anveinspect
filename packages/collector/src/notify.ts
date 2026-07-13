@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import Database from 'better-sqlite3';
 
 /**
@@ -18,6 +19,8 @@ export const NOTIFY_PATH = process.env.ANVEINSPECT_NOTIFY ?? join(homedir(), '.a
 
 export interface NotifyConfig {
   slackWebhookUrl?: string;
+  /** macOS Notification Center fallback when no webhook is set (default: true on darwin) */
+  desktopNotifications?: boolean;
 }
 
 export function loadNotifyConfig(path = NOTIFY_PATH): NotifyConfig {
@@ -104,30 +107,53 @@ export interface DeliveryOutcome {
   delivered: string[];
   failed: { id: string; error: string }[];
   skipped: 'no_webhook' | null;
+  channel: 'slack' | 'desktop' | null;
+}
+
+/** Post one alert to macOS Notification Center via osascript. Injectable for tests. */
+export type DesktopNotifier = (title: string, body: string) => void;
+
+function defaultDesktopNotifier(title: string, body: string): void {
+  // osascript arguments are passed as argv (never interpolated into the script) — no quoting injection
+  execFileSync(
+    'osascript',
+    ['-e', 'on run argv', '-e', 'display notification (item 2 of argv) with title (item 1 of argv)', '-e', 'end run', title, body],
+    { timeout: 5000 },
+  );
 }
 
 export async function deliverAlerts(
   dbPath: string,
-  opts: { fetchFn?: typeof fetch; config?: NotifyConfig; dashboardUrl?: string } = {},
+  opts: { fetchFn?: typeof fetch; config?: NotifyConfig; dashboardUrl?: string; desktopNotifier?: DesktopNotifier } = {},
 ): Promise<DeliveryOutcome> {
   const config = opts.config ?? loadNotifyConfig();
   const fetchFn = opts.fetchFn ?? globalThis.fetch;
   const dashboardUrl = opts.dashboardUrl ?? 'http://localhost:4177';
-  if (!config.slackWebhookUrl) return { delivered: [], failed: [], skipped: 'no_webhook' };
+
+  // No Slack webhook? Fall back to macOS Notification Center so a standing watch
+  // pages SOMEONE out of the box. Explicitly disable with {"desktopNotifications": false}.
+  const canDesktop = process.platform === 'darwin' && config.desktopNotifications !== false;
+  if (!config.slackWebhookUrl && !canDesktop) return { delivered: [], failed: [], skipped: 'no_webhook', channel: null };
 
   const pending = undeliveredOpenAlerts(dbPath);
   const delivered: string[] = [];
   const failed: { id: string; error: string }[] = [];
+  const channel: 'slack' | 'desktop' = config.slackWebhookUrl ? 'slack' : 'desktop';
+  const notify = opts.desktopNotifier ?? defaultDesktopNotifier;
   const db = new Database(dbPath);
   try {
     for (const alert of pending) {
       try {
-        const res = await fetchFn(config.slackWebhookUrl, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(formatSlackPayload(alert, dashboardUrl)),
-        });
-        if (!res.ok) throw new Error(`webhook returned HTTP ${res.status}`);
+        if (channel === 'slack') {
+          const res = await fetchFn(config.slackWebhookUrl!, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(formatSlackPayload(alert, dashboardUrl)),
+          });
+          if (!res.ok) throw new Error(`webhook returned HTTP ${res.status}`);
+        } else {
+          notify(`AnveInspect — ${KIND_LABEL[alert.kind] ?? alert.kind}`, alert.reason);
+        }
         db.prepare(`UPDATE alerts SET delivered_at = datetime('now') WHERE id = ?`).run(alert.id);
         delivered.push(alert.id);
       } catch (err) {
@@ -137,5 +163,5 @@ export async function deliverAlerts(
   } finally {
     db.close();
   }
-  return { delivered, failed, skipped: null };
+  return { delivered, failed, skipped: null, channel };
 }

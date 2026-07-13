@@ -222,6 +222,12 @@ tbody tr:last-child td{border-bottom:none}
 .gantt-bar.root{background:var(--ok)}
 .gantt-bar.err{background:var(--red)}
 .gantt-bar.open{border-right:2px dashed rgba(232,237,244,.6)}
+.welcome .bd{padding:34px 38px}
+.welcome h2{font-size:21px;font-weight:650;letter-spacing:-.01em;margin-bottom:10px}
+.welcome p{color:var(--dim);font-size:13.5px;max-width:560px;line-height:1.55;margin-bottom:16px}
+.welcome ol{color:var(--text);font-size:13px;line-height:2.1;padding-left:20px}
+.welcome .mono{font-family:ui-monospace,monospace;color:var(--info);background:var(--info-bg);border-radius:4px;padding:2px 7px}
+.brand-tag{font-size:10.5px;color:var(--faint);letter-spacing:.02em;padding:2px 18px 10px 33px}
 
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 @media(max-width:720px){.app{grid-template-columns:1fr}.rail{display:none}}
@@ -230,6 +236,7 @@ tbody tr:last-child td{border-bottom:none}
 <div class="app">
   <nav class="rail">
     <div class="brand"><span class="dot"></span>ANVE<b>INSPECT</b></div>
+    <div class="brand-tag">Every agent. One control plane.</div>
     <div class="nav" id="nav">
       <a data-route="overview"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</a>
       <a data-route="agents"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Agents<span class="badge" id="b-agents">–</span></a>
@@ -313,6 +320,20 @@ function render(){
 /* ── OVERVIEW ─────────────────────────────────────────────────────────── */
 function renderOverview(page){
   const p=FLEET.pulse;
+  // first-run: nothing scanned yet — welcome the user with the 30-second path in
+  if(p.total===0){
+    const hero=el('div','card welcome');
+    hero.innerHTML=`<div class="bd">
+      <h2>See every AI agent you run</h2>
+      <p>AnveInspect reads the logs your agents already write — no instrumentation, no API keys. Three commands to a full fleet:</p>
+      <ol>
+        <li><span class="mono">anveinspect doctor</span> — detect platforms, reuse your CLI logins, first scan</li>
+        <li><span class="mono">anveinspect setup claude</span> — let Claude operate the fleet (Codex/Cursor too)</li>
+        <li>Refresh this page — inventory, lineage, costs, and silent-failure paging appear</li>
+      </ol></div>`;
+    page.appendChild(hero);
+    return;
+  }
   const totalTok = INSIGHTS ? INSIGHTS.dailyTokens.reduce((s,d)=>s+d.tokens,0) : null;
   const wow = INSIGHTS?.weekOverWeek;
   // KPI row

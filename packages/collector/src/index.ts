@@ -13,3 +13,4 @@ export * from './lineage.js';
 export * from './pricing.js';
 export * from './analytics.js';
 export * from './tags.js';
+export * from './dashboard.js';

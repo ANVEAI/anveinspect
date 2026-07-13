@@ -11,6 +11,7 @@ import { lineageSummary, topLineageRoots, lineageTree } from './lineage.js';
 import { computeAnalytics } from './analytics.js';
 import { fmtUsd } from './pricing.js';
 import { addTag, removeTag, tagSummary } from './tags.js';
+import { startDashboard } from './dashboard.js';
 import { writeFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
@@ -18,14 +19,18 @@ import { fileURLToPath } from 'node:url';
 
 const PLIST_PATH = join(homedir(), 'Library', 'LaunchAgents', 'com.anveinspect.tick.plist');
 const CLI_PATH = fileURLToPath(import.meta.url);
-const REPO_ROOT = resolve(dirname(CLI_PATH), '..', '..', '..');
+// Bundled install: cli.mjs sits in dist/ next to index.html; package root is one up.
+// Dev checkout: cli.ts sits in packages/collector/src; repo root is three up.
+const IS_BUNDLED = existsSync(join(dirname(CLI_PATH), 'index.html'));
+const REPO_ROOT = IS_BUNDLED ? resolve(dirname(CLI_PATH), '..') : resolve(dirname(CLI_PATH), '..', '..', '..');
 
 async function notifyAndReport(): Promise<string[]> {
   const outcome = await deliverAlerts(DEFAULT_DB);
   if (outcome.skipped === 'no_webhook') {
-    return [`delivery skipped — no slackWebhookUrl in ${NOTIFY_PATH}`];
+    return [`delivery skipped — no slackWebhookUrl in ${NOTIFY_PATH} and desktop notifications unavailable`];
   }
-  const lines = [`delivered ${outcome.delivered.length} alert(s) to Slack`];
+  const via = outcome.channel === 'desktop' ? 'macOS Notification Center (set slackWebhookUrl for Slack)' : 'Slack';
+  const lines = [`delivered ${outcome.delivered.length} alert(s) via ${via}`];
   for (const f of outcome.failed) lines.push(`  delivery FAILED for ${f.id}: ${f.error} (will retry next tick)`);
   return lines;
 }
@@ -174,6 +179,57 @@ try {
       out({ acked: true, id }, () => `acked ${id}`);
       break;
     }
+    case 'dash': {
+      // blocks intentionally — the server handle keeps the event loop alive
+      startDashboard(args[1] ? Number(args[1]) : undefined);
+      break;
+    }
+    case 'setup': {
+      const target = args[1];
+      const usage = 'usage: anveinspect setup <claude|codex|cursor> — prints the exact binding for that tool';
+      if (!target) throw new Error(usage);
+      // resolve the MCP entrypoint for THIS install: bundled dist/mcp.mjs beside the
+      // installed cli, else the repo's TypeScript server (dev checkout)
+      const distMcp = resolve(dirname(CLI_PATH), 'mcp.mjs');
+      const repoMcp = join(REPO_ROOT, 'packages', 'mcp', 'src', 'server.ts');
+      const mcpCmd = existsSync(distMcp) ? ['node', distMcp] : ['npx', 'tsx', repoMcp];
+      const lines: string[] = [];
+      if (target === 'claude') {
+        lines.push(
+          'Claude Code — two options:',
+          '',
+          '1. Full plugin (MCP tools + /anveinspect:* commands + hooks):',
+          `   claude --plugin-dir ${join(REPO_ROOT, 'packages', 'plugin')}`,
+          '',
+          '2. MCP server only:',
+          `   claude mcp add anveinspect -- ${mcpCmd.join(' ')}`,
+          '',
+          'Then ask Claude: "how\'s my fleet?"',
+        );
+      } else if (target === 'codex') {
+        lines.push(
+          'Codex — add to ~/.codex/config.toml:',
+          '',
+          '[mcp_servers.anveinspect]',
+          `command = "${mcpCmd[0]}"`,
+          `args = [${mcpCmd.slice(1).map((a) => `"${a}"`).join(', ')}]`,
+          '',
+          'Then ask Codex: "call fleet_status"',
+        );
+      } else if (target === 'cursor') {
+        lines.push(
+          'Cursor — add to .cursor/mcp.json (project) or ~/.cursor/mcp.json (global):',
+          '',
+          JSON.stringify({ mcpServers: { anveinspect: { command: mcpCmd[0], args: mcpCmd.slice(1) } } }, null, 2),
+          '',
+          'Then ask Cursor: "call fleet_status"',
+        );
+      } else {
+        throw new Error(usage);
+      }
+      out({ target, command: mcpCmd }, () => lines.join('\n'));
+      break;
+    }
     case 'report': {
       const db = openDb();
       const r = buildReport(db);
@@ -226,7 +282,9 @@ try {
         const sh = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
         const xml = (s: string) =>
           s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const command = `cd ${sh(REPO_ROOT)} && npx tsx packages/collector/src/cli.ts tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`;
+        const command = IS_BUNDLED
+          ? `node ${sh(CLI_PATH)} tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`
+          : `cd ${sh(REPO_ROOT)} && npx tsx packages/collector/src/cli.ts tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`;
         const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -394,8 +452,9 @@ try {
         const template = {
           bedrock: existing.bedrock ?? { region: 'us-east-1', accessKeyId: '', secretAccessKey: '' },
           foundry: existing.foundry ?? { endpoint: 'https://<resource>.services.ai.azure.com/api/projects/<project>', tenantId: '', clientId: '', clientSecret: '' },
-          vertex: existing.vertex ?? { projectId: '', location: 'us-central1', serviceAccountKeyFile: '~/keys/vertex-viewer.json' },
-          cloudflare: existing.cloudflare ?? { accountId: '', apiToken: '' },
+          // vertex/bedrock connect via your CLI logins automatically (gcloud/aws) — no entries needed.
+          // cloudflare needs a one-time Workers Scripts:Read token; foundry needs its project endpoint.
+          cloudflare: existing.cloudflare ?? { apiToken: '' },
           openclaw: existing.openclaw ?? { path: '~/.openclaw' },
           hermes: existing.hermes ?? { path: '~/.hermes' },
         };
@@ -407,7 +466,7 @@ try {
       break;
     }
     default:
-      throw new Error(`unknown command: ${cmd} (available: doctor, scan, status, agents, agent, lineage, costs, tag, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
+      throw new Error(`unknown command: ${cmd} (available: doctor, setup, dash, scan, status, agents, agent, lineage, costs, tag, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
   console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);

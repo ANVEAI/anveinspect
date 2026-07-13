@@ -1,10 +1,14 @@
 {
-  "name": "anveinspect-monorepo",
-  "private": true,
+  "name": "anveinspect",
   "type": "module",
   "version": "0.1.0",
-  "description": "AnveInspect — plug-and-play fleet control plane for AI coding agents: discovery, lineage, inventory, and silent-failure alerting across Claude Code, Codex, OpenClaw, Hermes, Bedrock, Vertex, Foundry, and Cloudflare.",
+  "description": "See every AI agent you run — across Claude Code, Codex, and your clouds. Who spawned what, what it costs, and a page when one silently stops.",
+  "keywords": ["ai-agents", "observability", "claude-code", "codex", "mcp", "agent-fleet", "lineage", "monitoring"],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ANVEAI/anveinspect.git"
+  },
   "workspaces": [
     "packages/*",
     "dashboard"
@@ -12,8 +16,16 @@
   "bin": {
     "anveinspect": "packages/collector/bin/anveinspect.mjs"
   },
+  "files": [
+    "dist",
+    "packages/collector/bin",
+    "packages/plugin",
+    "README.md"
+  ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "bundle": "node scripts/bundle.mjs",
+    "prepack": "node scripts/bundle.mjs",
     "test": "vitest run",
     "lint": "tsc -p tsconfig.json --noEmit",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -24,6 +36,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
@@ -32,6 +45,6 @@
     "better-sqlite3": "^11.8.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   }
 }

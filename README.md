@@ -1,27 +1,40 @@
 # AnveInspect
 
-**The control tower for your AI agent fleet.** Discovery, lineage, inventory, and
-silent-failure alerting for coding agents — across Claude Code, Codex, OpenClaw,
-Hermes, and (read-only) Amazon Bedrock, Google Vertex, Microsoft AI Foundry, and
-Cloudflare Workers.
+**See every AI agent you run — what it costs, who spawned what, and get paged
+when one silently stops.**
 
-Zero instrumentation. It reads the logs your agents already write and reuses the
-platform CLIs you're already signed into. Operated by Claude through an MCP plugin,
-by you through a CLI, or watched by a dashboard.
+Teams now run dozens of coding agents across Claude Code, Codex, OpenClaw,
+Hermes, and their clouds — and nobody can answer "what's running, why, and what
+did it cost?" AnveInspect answers it with **zero instrumentation**: it reads the
+logs your agents already write and reuses the platform CLIs you're already
+signed into. One dashboard, one CLI, and an MCP server so Claude itself can
+operate the fleet.
+
+```bash
+git clone <repo> && cd anveinspect && npm install   # npm publish pending — then just: npx anveinspect
+npx anveinspect doctor       # detects platforms, reuses your CLI logins, first scan
+npx anveinspect dash         # the fleet, live at localhost:4177
+```
+
+30 seconds from install to a full inventory — no API keys pasted, no SDK added
+to your agents, no code changed.
 
 ```
 platform CLIs (gcloud/aws/wrangler/az)  ─┐
 claude/codex/openclaw/hermes local logs ─┼─▶ collector ─▶ SQLite ─┬─▶ CLI
 claude hooks ─▶ fleet-emit ─▶ spool ─────┘                        ├─▶ MCP (Claude operates it)
                                                                   ├─▶ dashboard (:4177)
-                                          cadence engine ─▶ alerts ┴─▶ Slack (the pager)
+                                          cadence engine ─▶ alerts ┴─▶ Slack / macOS (the pager)
 ```
 
-## Plug and play
+## Connect your AI tools (bindings)
+
+One command prints the exact registration for each tool, resolving your install's paths:
 
 ```bash
-npm install
-npx anveinspect doctor      # detect platforms, reuse your CLI logins, first scan
+anveinspect setup claude    # Claude Code: plugin dir or `claude mcp add` one-liner
+anveinspect setup codex     # Codex: ~/.codex/config.toml block
+anveinspect setup cursor    # Cursor: .cursor/mcp.json block
 ```
 
 `doctor` reuses the sessions you already have — `gcloud auth login`, `aws configure`,
@@ -39,9 +52,9 @@ Anything not signed in prints the exact one-line command to fix it. Example:
 Then:
 
 ```bash
-npx anveinspect status      # fleet pulse + open alerts + stale agents
-npx anveinspect report      # full AI-ready briefing
-npm run dash                # dashboard at http://localhost:4177
+anveinspect status      # fleet pulse + open alerts + stale agents
+anveinspect report      # full AI-ready briefing
+anveinspect dash        # dashboard at http://localhost:4177
 ```
 
 ## Operated by Claude (the primary interface)
@@ -104,14 +117,19 @@ anveinspect schedule install   # launchd job every 15 min: scan → check → de
 
 Cadence grammar: `daily HH:MM` · `weekdays HH:MM` · `weekly mon HH:MM` · `every Nh`.
 Declared cadences page; inferred ones only suggest. Token spikes fire at >3× the
-trailing median. Alerts dedup per window (ack once, never re-fire), deliver to Slack
-exactly once (webhook in `~/.anveinspect/notify.json`), and retry on failure.
+trailing median. Alerts dedup per window (ack once, never re-fire), deliver exactly
+once, and retry on failure. Paging works **out of the box**: with no Slack webhook
+configured, alerts land in macOS Notification Center; add
+`{"slackWebhookUrl":"https://hooks.slack.com/..."}` to `~/.anveinspect/notify.json`
+to page Slack instead.
 
 ## All commands
 
 | Command | What it does |
 |---|---|
 | `doctor` / `init` | Detect platforms, reuse CLI logins, first scan + sync |
+| `setup <claude\|codex\|cursor>` | Print the exact MCP/plugin binding for that tool |
+| `dash [port]` | Serve the dashboard (default http://localhost:4177) |
 | `scan` | Ingest local Claude Code + Codex history (idempotent) |
 | `status` | Fleet pulse, open alerts, stale agents |
 | `agents` | Full inventory |

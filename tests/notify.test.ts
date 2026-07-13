@@ -71,9 +71,46 @@ describe('deliverAlerts', () => {
     expect(second.delivered).toHaveLength(2); // retried, not lost
   });
 
-  it('no webhook configured -> explicit skip, never a crash', async () => {
+  it('no webhook + desktop disabled -> explicit skip, never a crash', async () => {
     const dbPath = seededDb();
-    const outcome = await deliverAlerts(dbPath, { config: {} });
+    // desktopNotifications:false forces the skip path deterministically on every OS
+    const outcome = await deliverAlerts(dbPath, { config: { desktopNotifications: false } });
     expect(outcome.skipped).toBe('no_webhook');
+  });
+});
+
+describe('desktop notification fallback (no Slack webhook)', () => {
+  it('pages via the injected desktop notifier and keeps exactly-once semantics', async () => {
+    const dbPath = seededDb();
+    const shown: { title: string; body: string }[] = [];
+    const desktopNotifier = (title: string, body: string) => void shown.push({ title, body });
+    const cfg = {}; // no webhook -> darwin fallback path
+    const first = await deliverAlerts(dbPath, { config: cfg, desktopNotifier });
+    expect(first.channel).toBe('desktop');
+    expect(first.delivered).toEqual(['a1', 'a2']);
+    expect(shown).toHaveLength(2);
+    expect(shown[0]!.title).toContain('MISSED WINDOW');
+    const second = await deliverAlerts(dbPath, { config: cfg, desktopNotifier });
+    expect(second.delivered).toEqual([]); // dedup identical to the Slack channel
+    expect(shown).toHaveLength(2);
+  });
+
+  it('explicit desktopNotifications:false with no webhook skips honestly', async () => {
+    const dbPath = seededDb();
+    const out = await deliverAlerts(dbPath, { config: { desktopNotifications: false } });
+    expect(out.skipped).toBe('no_webhook');
+    expect(out.delivered).toEqual([]);
+  });
+
+  it('a failing notifier leaves alerts undelivered for retry', async () => {
+    const dbPath = seededDb();
+    const boom = () => { throw new Error('osascript unavailable'); };
+    const first = await deliverAlerts(dbPath, { config: {}, desktopNotifier: boom });
+    expect(first.delivered).toEqual([]);
+    expect(first.failed).toHaveLength(2);
+    // recovery: a working notifier delivers on the next tick
+    const shown: string[] = [];
+    const second = await deliverAlerts(dbPath, { config: {}, desktopNotifier: (t) => void shown.push(t) });
+    expect(second.delivered).toEqual(['a1', 'a2']);
   });
 });

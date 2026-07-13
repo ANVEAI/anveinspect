@@ -113,6 +113,27 @@ describe('e2e: operator lifecycle through the CLI', () => {
     expect(threw).toBe(true);
   });
 
+  it('setup prints tool bindings with resolved paths for claude/codex/cursor', () => {
+    for (const target of ['claude', 'codex', 'cursor'] as const) {
+      const text = execFileSync('npx', ['tsx', CLI, 'setup', target], { env, encoding: 'utf8' });
+      expect(text).toContain('anveinspect'); // names the server
+      if (target === 'claude') expect(text).toContain('claude mcp add');
+      if (target === 'codex') expect(text).toContain('[mcp_servers.anveinspect]');
+      if (target === 'cursor') expect(text).toContain('"mcpServers"');
+    }
+  });
+
+  it('setup with an unknown target exits non-zero with usage', () => {
+    let threw = false;
+    try {
+      execFileSync('npx', ['tsx', CLI, 'setup', 'vscode'], { env, encoding: 'utf8', stdio: 'pipe' });
+    } catch (e: any) {
+      threw = true;
+      expect(String(e.stderr)).toContain('usage: anveinspect setup');
+    }
+    expect(threw).toBe(true);
+  });
+
   it('ack with a typo´d alert id exits non-zero (a typo must never look like success)', () => {
     let threw = false;
     try {

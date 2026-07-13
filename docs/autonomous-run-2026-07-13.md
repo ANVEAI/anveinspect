@@ -186,3 +186,27 @@ Surfaces not covered by Cycle 10, tested for real. 2 more bugs fixed:
 - Setup note for founder (not a bug): the real ~/.anveinspect/notify.json has no
   slackWebhookUrl yet, so the standing watch pages nobody. One line to fix.
 86 tests green, typecheck clean, real DB/spool left clean.
+
+### Cycle 12 (installation + bindings + positioning) — DONE (user-requested)
+- REAL installability: esbuild bundles (dist/cli.mjs 122KB, dist/mcp.mjs 832KB,
+  index.html) run on plain node — no tsx/workspaces at runtime. package.json:
+  name=anveinspect, files, prepack, engines>=20, smart bin launcher (dev->tsx,
+  installed->bundle). PROVEN with a real npm pack -> install into a scratch
+  prefix -> installed bin runs status, serves the dashboard, and the installed
+  MCP bundle lists all 16 tools. (Fixed a double-shebang that broke mcp.mjs.)
+- Bindings: `anveinspect setup claude|codex|cursor` prints exact registrations
+  with THIS install's resolved paths (plugin dir / claude mcp add / config.toml /
+  mcp.json). New `anveinspect dash [port]` — dashboard server moved into the
+  collector (dashboard/server.ts is now a thin dev shim) so installs get it too.
+- Paging out of the box: with no Slack webhook, alerts land in macOS Notification
+  Center (osascript, argv-passed — no quoting injection; injectable for tests;
+  {"desktopNotifications":false} opts out). The PRODUCTION launchd tick delivered
+  the real Explore token-spike alert via Notification Center on its own at 12:40
+  IST — the "watch pages nobody" gap is closed with zero config.
+- YC positioning (researched: descriptive one-liner, plain language, <80-word
+  hero): README hero rewritten ("See every AI agent you run — what it costs, who
+  spawned what, and get paged when one silently stops"), honest install block,
+  bindings section, macOS pager documented. Dashboard: first-run welcome hero
+  (3-step quickstart, verified on an empty db) + sidebar tagline.
+- connectors init no longer writes the empty-placeholder cloudflare/vertex trap.
+- 91 tests green (+5: 3 desktop-notify incl. failure-retry, 2 setup-bindings).
