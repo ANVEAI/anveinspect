@@ -1,0 +1,320 @@
+<template>
+  <div id="root" data-composition-id="08-zeroinstall" data-duration="6.5" data-width="1920" data-height="1080">
+    <!-- full-bleed ground: dedicated clip, never painted on #root -->
+    <div class="clip" id="zi8-bg" data-start="0" data-duration="6.5" data-track-index="0"></div>
+
+    <!-- content -->
+    <div class="clip" id="zi8-stage" data-start="0" data-duration="6.5" data-track-index="1">
+      <!-- mono chrome -->
+      <div class="zi8-kicker" id="zi8-kicker"><span class="zi8-slash">/</span>&nbsp;ZERO INSTRUMENTATION</div>
+      <div class="zi8-num" id="zi8-num">08</div>
+
+      <!-- Scene 1 : three full-screen beats, each alone at center -->
+      <div class="zi8-beats">
+        <div class="zi8-beat" id="zi8-b1">no SDK.</div>
+        <div class="zi8-beat" id="zi8-b2">no API keys.</div>
+        <div class="zi8-beat" id="zi8-b3">no code changes.</div>
+      </div>
+
+      <!-- Scenes 2 + 3 : checklist stack (left) + mono type-on (right), 40/60 -->
+      <div class="zi8-panel" id="zi8-panel">
+        <div class="zi8-list">
+          <div class="zi8-rule"></div>
+          <div class="zi8-item" id="zi8-i1">
+            <svg class="zi8-check" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+              <circle class="zi8-ring" cx="26" cy="26" r="23"></circle>
+              <path class="zi8-tick" id="zi8-tick1" d="M 15 27 L 23 35 L 38 18"></path>
+            </svg>
+            <span>no SDK</span>
+          </div>
+          <div class="zi8-item" id="zi8-i2">
+            <svg class="zi8-check" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+              <circle class="zi8-ring" cx="26" cy="26" r="23"></circle>
+              <path class="zi8-tick" id="zi8-tick2" d="M 15 27 L 23 35 L 38 18"></path>
+            </svg>
+            <span>no API keys</span>
+          </div>
+          <div class="zi8-item" id="zi8-i3">
+            <svg class="zi8-check" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+              <circle class="zi8-ring" cx="26" cy="26" r="23"></circle>
+              <path class="zi8-tick" id="zi8-tick3" d="M 15 27 L 23 35 L 38 18"></path>
+            </svg>
+            <span>no code changes</span>
+          </div>
+        </div>
+        <div class="zi8-divider"></div>
+        <div class="zi8-line" id="zi8-lineblock">
+          <span id="zi8-type"></span><span class="zi8-caret" id="zi8-caret"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* frame root styled via #root (never a class on the composition element) */
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      container-type: size;
+    }
+    .clip {
+      position: absolute;
+      inset: 0;
+    }
+    #zi8-bg {
+      background: #0a0d12; /* ink-black canvas register */
+    }
+    #zi8-stage {
+      color: #eef2f7;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* ---- mono chrome ---- */
+    .zi8-kicker,
+    .zi8-num {
+      position: absolute;
+      top: 3.4cqh;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 0.78cqw;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      color: rgba(238, 242, 247, 0.5);
+      will-change: transform, opacity;
+    }
+    .zi8-kicker {
+      left: 5.5cqw;
+    }
+    .zi8-kicker .zi8-slash {
+      color: #3ecf8e;
+    }
+    .zi8-num {
+      right: 5.5cqw;
+      color: rgba(238, 242, 247, 0.32);
+    }
+
+    /* ---- Scene 1 beats ---- */
+    .zi8-beats {
+      position: absolute;
+      inset: 0;
+      padding-bottom: 17cqh; /* biases optical center up, clear of the caption keep-out */
+    }
+    .zi8-beat {
+      position: absolute;
+      inset: 0;
+      padding-bottom: 17cqh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8.2cqw;
+      font-weight: 800;
+      line-height: 0.92;
+      letter-spacing: -0.03em;
+      white-space: nowrap;
+      will-change: transform, filter, opacity;
+    }
+
+    /* ---- Scenes 2+3 panel : 40/60 asymmetric ---- */
+    .zi8-panel {
+      position: absolute;
+      inset: 0;
+      padding: 0 5.5cqw 18.5cqh 5.5cqw;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3.4cqw;
+      transform-origin: 50% 44%;
+      will-change: transform, opacity;
+    }
+    .zi8-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2.6cqh;
+      min-width: 30cqw;
+    }
+    .zi8-rule {
+      width: 36px;
+      height: 2px;
+      background: #3ecf8e;
+      margin-bottom: 0.6cqh;
+    }
+    .zi8-item {
+      display: flex;
+      align-items: center;
+      gap: 1.3cqw;
+      font-size: 2.9cqw;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      opacity: 0.45; /* brightens as its tick draws */
+      will-change: opacity;
+    }
+    .zi8-check {
+      width: 2.7cqw;
+      height: 2.7cqw;
+      flex: none;
+    }
+    .zi8-ring {
+      fill: none;
+      stroke: rgba(238, 242, 247, 0.18);
+      stroke-width: 2.5;
+    }
+    .zi8-tick {
+      fill: none;
+      stroke: #3ecf8e;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .zi8-divider {
+      width: 1px;
+      height: 24cqh;
+      background: rgba(238, 242, 247, 0.14);
+      flex: none;
+    }
+    .zi8-line {
+      width: 33cqw;
+      min-height: 17cqh;
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 1.7cqw;
+      font-weight: 500;
+      line-height: 1.65;
+      color: rgba(238, 242, 247, 0.78);
+      will-change: opacity;
+    }
+    .zi8-caret {
+      display: inline-block;
+      width: 0.55cqw;
+      height: 1.7cqw;
+      margin-left: 0.3cqw;
+      vertical-align: -0.2cqw;
+      background: #3ecf8e;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    window.__timelines = window.__timelines || {};
+
+    // 118 bpm grid — the silent piece's reveal cues (beat = 0.5085s, bar = 2.0339s)
+    const P = 60 / 118;
+    const B1 = 2 * P; // 1.017  — beat 2: "no API keys."
+    const B2 = 4 * P; // 2.034  — bar 2:  "no code changes."
+    const SWAP = 6 * P; // 3.051 — bar 3 half: scale-swap into checklist
+    const T1 = 6.5 * P, T2 = 7 * P, T3 = 7.5 * P; // 3.31 / 3.56 / 3.81 — staggered tick draws
+    const TYPE_AT = 9 * P; // 4.576 — Scene 3: mono type-on
+
+    // SVG self-draw setup: measure each tick path (dynamic geometry, not magic numbers)
+    document.querySelectorAll(".zi8-tick").forEach((p) => {
+      const len = p.getTotalLength();
+      p.style.strokeDasharray = `${len}`;
+      p.style.strokeDashoffset = `${len}`;
+    });
+
+    const tl = gsap.timeline({ paused: true });
+
+    /* ---- chrome fades up ---- */
+    tl.fromTo(
+      [".zi8-kicker", ".zi8-num"],
+      { opacity: 0, y: -14 },
+      { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+      0.25
+    );
+
+    /* ---- Scene 1 : kinetic beat-slam — one onset array, distinct entrance per beat ---- */
+    // beat 1 — slam: scale + blur, hard settle
+    tl.fromTo(
+      "#zi8-b1",
+      { scale: 1.5, filter: "blur(16px)", opacity: 0 },
+      { scale: 1, filter: "blur(0px)", opacity: 1, duration: 0.45, ease: "power4.out" },
+      0
+    );
+    // hard cut out on the next onset (no roll, no fade tail)
+    tl.to("#zi8-b1", { opacity: 0, duration: 0.02, ease: "none" }, B1);
+
+    // beat 2 — side snap
+    tl.fromTo(
+      "#zi8-b2",
+      { x: -340, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.4, ease: "expo.out" },
+      B1
+    );
+    tl.to("#zi8-b2", { opacity: 0, duration: 0.02, ease: "none" }, B2);
+
+    // beat 3 — heavy rise with momentum
+    tl.fromTo(
+      "#zi8-b3",
+      { y: 110, rotation: 2.5, opacity: 0 },
+      { y: 0, rotation: 0, opacity: 1, duration: 0.5, ease: "circ.out" },
+      B2
+    );
+
+    /* ---- Scene 2 : scale-swap — full-screen line morphs into the checklist stack ---- */
+    // outgoing rushes away (power2.in), incoming arrives with weight (back.out), 0.15s overlap
+    tl.to("#zi8-b3", { scale: 0.72, opacity: 0, duration: 0.32, ease: "power2.in" }, SWAP);
+    tl.fromTo(
+      "#zi8-panel",
+      { scale: 0.78, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.55, ease: "back.out(1.6)" },
+      SWAP + 0.32 - 0.15
+    );
+
+    // green ticks self-draw, staggered on the half-beat grid; each item brightens with its tick
+    [
+      ["#zi8-tick1", "#zi8-i1", T1],
+      ["#zi8-tick2", "#zi8-i2", T2],
+      ["#zi8-tick3", "#zi8-i3", T3],
+    ].forEach(([tick, item, t]) => {
+      tl.to(tick, { strokeDashoffset: 0, duration: 0.35, ease: "power2.out" }, t);
+      tl.to(item, { opacity: 1, duration: 0.3, ease: "power3.out" }, t);
+    });
+
+    /* ---- Scene 3 : mono type-on with caret, right of the stack ---- */
+    const LINE = "it reads the logs your agents already write.";
+    const typeEl = document.getElementById("zi8-type");
+    const caretEl = document.getElementById("zi8-caret");
+
+    tl.fromTo(
+      "#zi8-lineblock",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.2, ease: "power1.out" },
+      TYPE_AT - 0.08
+    );
+
+    // smooth character slice — deterministic substring off a driven counter
+    const len = { v: 0 };
+    tl.to(
+      len,
+      {
+        v: LINE.length,
+        duration: 1.0,
+        ease: "none",
+        onUpdate: () => {
+          typeEl.textContent = LINE.substring(0, Math.floor(len.v));
+        },
+      },
+      TYPE_AT
+    );
+
+    // caret blink — deterministic sin, never a CSS animation (2 cycles across the scene tail)
+    const blink = { p: 0 };
+    tl.to(
+      blink,
+      {
+        p: Math.PI * 2 * 2,
+        duration: 1.5,
+        ease: "none",
+        onUpdate: () => {
+          caretEl.style.opacity = Math.sin(blink.p) > 0 ? "1" : "0";
+        },
+      },
+      TYPE_AT - 0.08
+    );
+
+    // held read on the settle: one slow, non-repeating micro-push (no exit — root transition owns that)
+    tl.to("#zi8-panel", { scale: 1.012, duration: 1.3, ease: "sine.inOut" }, 4.7);
+
+    window.__timelines["08-zeroinstall"] = tl;
+  </script>
+</template>

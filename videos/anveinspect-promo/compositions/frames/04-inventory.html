@@ -1,0 +1,409 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 4 — Proof 1: the whole fleet, counted (dataviz-countup, adapted: triptych of counters over the real UI) -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root only (never a class on the composition root). */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          --ink: #eef2f7; /* off-white text */
+          --ground: #10141b; /* ink-black canvas */
+          --accent: #3ecf8e; /* the ONE accent */
+          --muted: #afb7b3;
+          --hairline: rgba(238, 242, 247, 0.28);
+          --font-display: system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+          --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        }
+
+        /* Full-bleed ground lives on a clip layer, never on #root */
+        .inv04-ground {
+          position: absolute;
+          inset: 0;
+          background: var(--ground);
+        }
+
+        .inv04-stage {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* One camera wraps EVERYTHING — the slow push runs the whole frame */
+        .inv04-camera {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+
+        /* view-overview.png — background role: full-bleed, dimmed ~45% */
+        .inv04-bg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .inv04-scrim {
+          position: absolute;
+          inset: 0;
+          background: rgba(16, 20, 27, 0.5);
+        }
+        .inv04-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse 72% 62% at 50% 44%,
+            rgba(16, 20, 27, 0) 0%,
+            rgba(16, 20, 27, 0.55) 100%
+          );
+        }
+
+        /* Mono kicker "INVENTORY" — chrome, uppercase, tracked, accent on dark */
+        .inv04-kicker {
+          position: absolute;
+          top: 4.6cqh;
+          left: 5.5cqw;
+        }
+        .inv04-kicker-mask {
+          overflow: hidden;
+          display: inline-block;
+        }
+        .inv04-kicker-text {
+          display: inline-block;
+          font-family: var(--font-mono);
+          font-size: 1.1cqw;
+          font-weight: 500;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: var(--accent);
+          line-height: 1;
+          will-change: transform;
+        }
+        .inv04-kicker-rule {
+          margin-top: 0.7cqh;
+          width: 9cqw;
+          height: 1px;
+          background: var(--hairline);
+          transform-origin: left center;
+          will-change: transform;
+        }
+
+        /* The counter triptych — dead-center row, display-size hierarchy over the dim UI */
+        .inv04-counters {
+          position: absolute;
+          left: 9cqw;
+          right: 9cqw;
+          top: 30cqh;
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          align-items: end;
+        }
+        .inv04-col {
+          text-align: center;
+          will-change: transform, opacity;
+        }
+        .inv04-valwrap {
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          height: 160px;
+          will-change: transform;
+        }
+        .inv04-val {
+          font-family: var(--font-mono);
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.01em;
+          line-height: 1;
+          color: var(--ink);
+          font-size: 84px; /* GSAP grows this with the value */
+          white-space: nowrap;
+        }
+        .inv04-val .inv04-sym {
+          /* the "$" — flashes to accent on the final tick */
+          color: var(--ink);
+        }
+        .inv04-unit {
+          margin-top: 1.6cqh;
+          font-family: var(--font-mono);
+          font-size: 0.95cqw;
+          font-weight: 500;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--muted);
+          line-height: 1;
+          will-change: transform, opacity;
+        }
+
+        /* Sub-line payoff — display face, lowercase, per-word reveal */
+        .inv04-subline {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 66cqh;
+          text-align: center;
+          font-family: var(--font-display);
+          font-size: 2.8cqw;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          line-height: 1.2;
+          text-transform: lowercase;
+          color: var(--ink);
+        }
+        .inv04-word {
+          display: inline-block;
+          margin: 0 0.35cqw;
+          will-change: transform, opacity;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="04-inventory"
+        data-width="1920"
+        data-height="1080"
+        data-duration="7.5"
+      >
+        <!-- full-bleed ground on its own clip layer (lowest track) -->
+        <div class="clip inv04-ground" data-start="0" data-duration="7.5" data-track-index="0"></div>
+
+        <!-- the shot -->
+        <div class="clip inv04-stage" data-start="0" data-duration="7.5" data-track-index="1">
+          <div class="inv04-camera" id="inv04-camera">
+            <img class="inv04-bg" id="inv04-bg" src="assets/view-overview.png" alt="" />
+            <div class="inv04-scrim"></div>
+            <div class="inv04-vignette"></div>
+
+            <div class="inv04-kicker">
+              <span class="inv04-kicker-mask"
+                ><span class="inv04-kicker-text" id="inv04-kicker-text">inventory</span></span
+              >
+              <div class="inv04-kicker-rule" id="inv04-kicker-rule"></div>
+            </div>
+
+            <div class="inv04-counters">
+              <div class="inv04-col" id="inv04-col1">
+                <div class="inv04-valwrap">
+                  <span class="inv04-val" id="inv04-val1">0</span>
+                </div>
+                <div class="inv04-unit" id="inv04-unit1">agents</div>
+              </div>
+              <div class="inv04-col" id="inv04-col2">
+                <div class="inv04-valwrap">
+                  <span class="inv04-val" id="inv04-val2">0</span>
+                </div>
+                <div class="inv04-unit" id="inv04-unit2">platforms</div>
+              </div>
+              <div class="inv04-col" id="inv04-col3">
+                <div class="inv04-valwrap" id="inv04-valwrap3">
+                  <span class="inv04-val" id="inv04-val3"
+                    ><span class="inv04-sym" id="inv04-sym">$</span
+                    ><span id="inv04-num3">0.0</span>k</span
+                  >
+                </div>
+                <div class="inv04-unit" id="inv04-unit3">est. 30-day spend</div>
+              </div>
+            </div>
+
+            <div class="inv04-subline" id="inv04-subline">
+              <span class="inv04-word">every</span><span class="inv04-word">agent.</span
+              ><span class="inv04-word">every</span><span class="inv04-word">platform.</span
+              ><span class="inv04-word">every</span><span class="inv04-word">dollar.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        (function () {
+          const tl = gsap.timeline({ paused: true });
+
+          /* ---- 118bpm grid: the reveal cues ---- */
+          const BEAT = 60 / 118; /* 0.5085s */
+          const BAR = BEAT * 4; /* 2.0339s */
+          const T_KICKER = BEAT * 1; /* 0.51  — Scene 1 */
+          const T_C1 = BEAT * 3; /* 1.53  — Scene 2, counter 1 */
+          const T_C2 = T_C1 + BAR; /* 3.56  — one bar later */
+          const T_C3 = BAR * 2; /* 4.07  — Scene 3, counter 3 */
+          const C3_DUR = 1.15;
+          const T_FLASH = T_C3 + C3_DUR; /* 5.22  — the final tick */
+          const T_SUB = BEAT * 11; /* 5.59  — Scene 4, last-bar reveal */
+
+          /* ---- camera: one slow continuous push, whole frame (multi-phase-camera, steady push) ---- */
+          const camera = document.getElementById("inv04-camera");
+          const phase = { scale: 1.02 };
+          tl.to(phase, { scale: 1.062, duration: 3.5, ease: "power1.inOut" }, 0);
+          tl.to(phase, { scale: 1.11, duration: 3.5, ease: "power2.inOut" }, 3.5);
+          const drift = { p: 0 };
+          tl.to(
+            drift,
+            {
+              p: Math.PI * 2 * 1.5,
+              duration: 7,
+              ease: "none",
+              onUpdate: () => {
+                const dx = Math.sin(drift.p) * 3.5;
+                const dy = Math.sin(drift.p * 1.3) * 2;
+                camera.style.transform =
+                  "scale(" + phase.scale + ") translate(" + dx + "px, " + dy + "px)";
+              },
+            },
+            0,
+          );
+
+          /* ---- Scene 1 (0–1.5): UI is on screen from frame 1; kicker wipes in on beat 1 ---- */
+          tl.fromTo(
+            "#inv04-kicker-text",
+            { xPercent: -104 },
+            { xPercent: 0, duration: 0.6, ease: "expo.out" },
+            T_KICKER,
+          );
+          tl.fromTo(
+            "#inv04-kicker-rule",
+            { scaleX: 0 },
+            { scaleX: 1, duration: 0.5, ease: "power3.out" },
+            T_KICKER + 0.18,
+          );
+
+          /* ---- counting-dynamic-scale: value + font-size in ONE tween, tabular-nums ---- */
+          const FS_START = 84;
+          const FS_END = 150;
+
+          /* counter 1 — 146 agents (Scene 2) */
+          tl.fromTo(
+            "#inv04-col1",
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            T_C1,
+          );
+          const val1 = document.getElementById("inv04-val1");
+          const s1 = { v: 0, fs: FS_START };
+          tl.to(
+            s1,
+            {
+              v: 146,
+              fs: FS_END,
+              duration: 1.1,
+              ease: "power3.out",
+              onUpdate: () => {
+                val1.textContent = Math.round(s1.v).toLocaleString("en-US");
+                val1.style.fontSize = s1.fs + "px";
+              },
+            },
+            T_C1,
+          );
+          tl.fromTo(
+            "#inv04-unit1",
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+            T_C1 + 0.35,
+          );
+
+          /* counter 2 — 4 platforms (lands one bar later, center) */
+          tl.fromTo(
+            "#inv04-col2",
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            T_C2,
+          );
+          const val2 = document.getElementById("inv04-val2");
+          const s2 = { v: 0, fs: FS_START };
+          tl.to(
+            s2,
+            {
+              v: 4,
+              fs: FS_END,
+              duration: 0.55,
+              ease: "power3.out",
+              onUpdate: () => {
+                val2.textContent = String(Math.round(s2.v));
+                val2.style.fontSize = s2.fs + "px";
+              },
+            },
+            T_C2,
+          );
+          tl.fromTo(
+            "#inv04-unit2",
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+            T_C2 + 0.3,
+          );
+
+          /* counter 3 — $9.3k est. 30-day spend (Scene 3, center-right) */
+          tl.fromTo(
+            "#inv04-col3",
+            { opacity: 0, y: 30 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" },
+            T_C3,
+          );
+          const val3 = document.getElementById("inv04-val3");
+          const num3 = document.getElementById("inv04-num3");
+          const s3 = { v: 0, fs: FS_START };
+          tl.to(
+            s3,
+            {
+              v: 9.3,
+              fs: FS_END,
+              duration: C3_DUR,
+              ease: "power3.out",
+              onUpdate: () => {
+                num3.textContent = s3.v.toFixed(1);
+                val3.style.fontSize = s3.fs + "px";
+              },
+            },
+            T_C3,
+          );
+          tl.fromTo(
+            "#inv04-unit3",
+            { opacity: 0, y: 14 },
+            { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+            T_C3 + 0.35,
+          );
+
+          /* final tick: the accent green flash on the "$" + a tight impact pulse */
+          tl.fromTo(
+            "#inv04-sym",
+            { color: "#eef2f7" },
+            { color: "#3ecf8e", duration: 0.18, ease: "expo.out" },
+            T_FLASH,
+          );
+          tl.fromTo(
+            "#inv04-valwrap3",
+            { scale: 1 },
+            { scale: 1.045, duration: 0.12, ease: "power2.out" },
+            T_FLASH,
+          );
+          tl.to(
+            "#inv04-valwrap3",
+            { scale: 1, duration: 0.14, ease: "power2.in" },
+            T_FLASH + 0.12,
+          );
+
+          /* ---- Scene 4 (5.5–7.0): sub-line per-word reveal on the last bar, then stillness ---- */
+          const words = gsap.utils.toArray("#inv04-subline .inv04-word");
+          words.forEach((w, i) => {
+            tl.fromTo(
+              w,
+              { opacity: 0, y: 26 },
+              { opacity: 1, y: 0, duration: 0.55, ease: "power3.out" },
+              T_SUB + i * 0.12,
+            );
+          });
+
+          window.__timelines["04-inventory"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

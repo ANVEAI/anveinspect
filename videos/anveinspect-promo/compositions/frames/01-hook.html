@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>01-hook — the question you can't answer</title>
+    <!-- head is source-file metadata only; the runtime clones <template> contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root — styled via #root only (scoper drops root classes). */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          background: transparent;
+        }
+
+        /* Full-bleed ground lives on its own clip layer, never on #root. */
+        .hook-ground {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+
+        .hook-stage {
+          position: absolute;
+          inset: 0;
+          font-family:
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            "Helvetica Neue",
+            Arial,
+            sans-serif;
+          color: #eef2f7;
+        }
+
+        /* ——— Scene 1+2 block: sentence + counter line, upper-center ——— */
+        #hook-top {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 25cqh;
+          text-align: center;
+          transform-origin: 50% 0%;
+          will-change: transform, opacity;
+        }
+        #hook-line1 {
+          font-size: 5.8cqw;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          text-transform: lowercase;
+        }
+        .hook-w {
+          display: inline-block;
+          will-change: transform, filter, opacity;
+        }
+        #hook-line2 {
+          margin-top: 2.2cqw;
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 1.4cqw;
+          will-change: transform, filter, opacity;
+        }
+        #hook-numwrap {
+          display: inline-block;
+          min-width: 33cqw;
+          text-align: right;
+          white-space: nowrap;
+        }
+        #hook-num {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas,
+            monospace;
+          font-weight: 700;
+          font-size: 6.8cqw; /* tweened to 11cqw by the value-scaled counter */
+          line-height: 1;
+          letter-spacing: -0.02em;
+          font-variant-numeric: tabular-nums;
+          color: #eef2f7;
+        }
+        #hook-sentence {
+          font-size: 3.7cqw;
+          font-weight: 600;
+          line-height: 1;
+          letter-spacing: -0.02em;
+          text-transform: lowercase;
+          color: #afb7b3;
+          white-space: nowrap;
+        }
+
+        /* ——— Scene 3+4: fixed stem + cycling token ——— */
+        #hook-qrow {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 55cqh;
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 1.6cqw;
+          font-size: 7cqw;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          text-transform: lowercase;
+          will-change: transform;
+        }
+        #hook-stem {
+          display: inline-flex;
+          gap: 1.6cqw;
+          white-space: nowrap;
+        }
+        .hook-sw {
+          display: inline-block;
+          will-change: transform, filter, opacity;
+        }
+        #hook-slot {
+          display: inline-block;
+          min-width: 24cqw;
+          text-align: left;
+          white-space: nowrap;
+          color: #eef2f7;
+          will-change: transform;
+          font-variant-numeric: tabular-nums;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="01-hook" data-duration="6"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- lowest track: full-bleed ink-black ground -->
+        <div
+          class="clip hook-ground"
+          data-start="0"
+          data-duration="6"
+          data-track-index="0"
+        ></div>
+
+        <!-- content track -->
+        <div
+          class="clip hook-stage"
+          data-start="0"
+          data-duration="6"
+          data-track-index="1"
+        >
+          <div id="hook-top">
+            <div id="hook-line1">
+              <span class="hook-w">your</span>
+              <span class="hook-w">ai</span>
+              <span class="hook-w">agents</span>
+              <span class="hook-w">ran</span>
+            </div>
+            <div id="hook-line2">
+              <span id="hook-numwrap"><span id="hook-num">0</span></span>
+              <span id="hook-sentence">times this month.</span>
+            </div>
+          </div>
+
+          <div id="hook-qrow">
+            <span id="hook-stem">
+              <span class="hook-sw">what</span>
+              <span class="hook-sw">did</span>
+              <span class="hook-sw">they</span>
+            </span>
+            <span id="hook-slot"></span>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ——— 118bpm grid: every cue reads off this, never hand-tuned drift ——— */
+        const BEAT = 60 / 118; // ≈ 0.5085s
+        const BAR = BEAT * 4; // ≈ 2.0339s
+        const DUR = 6;
+        const INK = "#eef2f7";
+        const ACCENT = "#3ecf8e";
+
+        /* ============ Scene 1 (0.0–1.0s) — per-word staggered reveal ============ */
+        tl.fromTo(
+          ".hook-w",
+          { y: 44, opacity: 0, filter: "blur(10px)" },
+          {
+            y: 0,
+            opacity: 1,
+            filter: "blur(0px)",
+            duration: 0.45,
+            ease: "power3.out",
+            stagger: 0.14,
+          },
+          0.08
+        );
+
+        /* ============ Scene 2 (1.0–2.0s) — beat-slam + value-scaled counter ============ */
+        // Line 2 slams in on beat 2 (≈1.017s), hard attack, fast settle.
+        tl.fromTo(
+          "#hook-line2",
+          { scale: 1.4, opacity: 0, filter: "blur(14px)" },
+          {
+            scale: 1,
+            opacity: 1,
+            filter: "blur(0px)",
+            duration: 0.5,
+            ease: "power4.out",
+          },
+          BEAT * 2
+        );
+
+        // Counter co-drives value + font-size (counting-dynamic-scale) and
+        // finishes exactly on the bar line (BAR ≈ 2.034s).
+        const numEl = document.getElementById("hook-num");
+        const cnt = { v: 0, fs: 6.8 };
+        tl.to(
+          cnt,
+          {
+            v: 1512,
+            fs: 11,
+            duration: BAR - BEAT * 2,
+            ease: "power3.out",
+            onUpdate: () => {
+              numEl.textContent = Math.round(cnt.v).toLocaleString("en-US");
+              numEl.style.fontSize = cnt.fs + "cqw";
+            },
+          },
+          BEAT * 2
+        );
+
+        /* ============ Scene 3 (2.0–5.0s) — condense up, stem holds, token cycles ============ */
+        // The opening statement condenses upward to yield the frame.
+        tl.fromTo(
+          "#hook-top",
+          { y: 0, scale: 1, opacity: 1 },
+          {
+            y: -150,
+            scale: 0.52,
+            opacity: 0.7,
+            duration: 0.65,
+            ease: "power3.inOut",
+          },
+          BAR
+        );
+
+        // Fixed stem "what did they" — quick per-word reveal under the condense.
+        tl.fromTo(
+          ".hook-sw",
+          { y: 34, opacity: 0, filter: "blur(6px)" },
+          {
+            y: 0,
+            opacity: 1,
+            filter: "blur(0px)",
+            duration: 0.4,
+            ease: "power3.out",
+            stagger: 0.12,
+          },
+          BAR + 0.26
+        );
+
+        // In-place token cycle — instant hard cuts on the half-bar grid
+        // (discrete-text-sequence: reverse-search latest state whose t passed).
+        const SWAPS = [BEAT * 5, BEAT * 7, BEAT * 9]; // ≈ 2.54 / 3.56 / 4.58
+        const FLIP_T = 5.0; // Scene 4: "break?" flips accent
+        const SEQUENCE = [
+          { t: 0, text: "" },
+          { t: SWAPS[0], text: "build?" },
+          { t: SWAPS[1], text: "spend?" },
+          { t: SWAPS[2], text: "break?" },
+        ];
+        const slotEl = document.getElementById("hook-slot");
+        const driver = { t: 0 };
+        tl.to(
+          driver,
+          {
+            t: DUR,
+            duration: DUR,
+            ease: "none",
+            onUpdate: () => {
+              let text = "";
+              for (let i = SEQUENCE.length - 1; i >= 0; i--) {
+                if (driver.t >= SEQUENCE[i].t) {
+                  text = SEQUENCE[i].text;
+                  break;
+                }
+              }
+              slotEl.textContent = text;
+              // Scene 4 color flip — deterministic, owned entirely here.
+              slotEl.style.color = driver.t >= FLIP_T ? ACCENT : INK;
+            },
+          },
+          0
+        );
+
+        // Each swap is a tick — tiny percussive settle on the slot.
+        SWAPS.forEach((t) => {
+          tl.fromTo(
+            "#hook-slot",
+            { scale: 1.06 },
+            { scale: 1, duration: 0.16, ease: "power2.out" },
+            t
+          );
+        });
+
+        /* ============ Scene 4 (5.0–6.0s) — flip to accent, dim the rest, held read ============ */
+        // Emphasis pop as the color flips.
+        tl.fromTo(
+          "#hook-slot",
+          { scale: 1.1 },
+          { scale: 1, duration: 0.3, ease: "power3.out" },
+          FLIP_T
+        );
+        // Everything else dims 20%.
+        tl.to(
+          "#hook-top",
+          { opacity: 0.56, duration: 0.35, ease: "power2.out" },
+          FLIP_T
+        );
+        tl.to(
+          ".hook-sw",
+          { opacity: 0.8, duration: 0.35, ease: "power2.out" },
+          FLIP_T
+        );
+        // Held read — subtle jitter only (one quiet breath, no loop, no exit).
+        tl.to(
+          "#hook-qrow",
+          { scale: 1.006, duration: 0.42, ease: "sine.inOut" },
+          5.12
+        );
+        tl.to(
+          "#hook-qrow",
+          { scale: 1, duration: 0.42, ease: "sine.inOut" },
+          5.54
+        );
+
+        window.__timelines["01-hook"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

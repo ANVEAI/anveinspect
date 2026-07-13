@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>07-paging — silent-failure paging</title>
+    <!-- head is metadata only; the runtime clones template contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root — never a class on the composition root */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          overflow: hidden;
+          container-type: size;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        }
+
+        /* ── full-bleed ground (dedicated clip layer, never on #root) ── */
+        .bg {
+          position: absolute;
+          inset: 0;
+          background: #10141b;
+        }
+
+        /* faint amber tension glow, lower-left (ambient-glow-bloom, hero-bloom form, held flat) */
+        .amber-glow {
+          position: absolute;
+          left: -12cqw;
+          bottom: -22cqh;
+          width: 52cqw;
+          height: 70cqh;
+          background: radial-gradient(
+            closest-side,
+            rgba(232, 163, 61, 0.55) 0%,
+            rgba(232, 163, 61, 0.18) 45%,
+            transparent 72%
+          );
+          opacity: 0;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+
+        /* ── content layer ── */
+        .content {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* macOS-style notification card, rebuilt clean — rule-of-thirds upper-right, ~38% width */
+        .alert-card {
+          position: absolute;
+          top: 12cqh;
+          right: 5.5cqw;
+          width: 38cqw;
+          box-sizing: border-box;
+          padding: 1.05cqw 1.2cqw;
+          background: rgba(26, 32, 41, 0.96);
+          border: 1px solid rgba(238, 242, 247, 0.1);
+          border-radius: 0.95cqw;
+          box-shadow: 0 1.2cqw 3.2cqw rgba(0, 0, 0, 0.45);
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .card-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 0.95cqw;
+        }
+        .dot-wrap {
+          position: relative;
+          flex: 0 0 auto;
+          width: 1.35cqw;
+          height: 1.35cqw;
+          margin-top: 0.22cqw;
+        }
+        .app-dot {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: #3ecf8e;
+          will-change: transform;
+        }
+        .dot-halo {
+          position: absolute;
+          inset: -0.85cqw;
+          border-radius: 50%;
+          background: radial-gradient(
+            closest-side,
+            rgba(62, 207, 142, 0.55) 0%,
+            transparent 70%
+          );
+          opacity: 0;
+          pointer-events: none;
+          will-change: opacity;
+        }
+        .card-main {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        .card-title-row {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 0.8cqw;
+        }
+        .card-title {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 1.02cqw;
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          color: rgba(238, 242, 247, 0.92);
+          white-space: nowrap;
+        }
+        .card-time {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 0.82cqw;
+          letter-spacing: 0.1em;
+          color: rgba(175, 183, 179, 0.55);
+        }
+        /* red hairline — the one-pulse semantic accent, used only in this frame */
+        .red-line {
+          height: 2px;
+          margin: 0.5cqw 0 0.55cqw;
+          background: #e5484d;
+          transform-origin: left center;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .card-body {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 1.22cqw;
+          line-height: 1.5;
+          color: #afb7b3;
+        }
+        .overdue {
+          color: #e8a33d;
+          font-weight: 500;
+        }
+
+        /* ── type block, beneath and left ── */
+        .lines {
+          position: absolute;
+          left: 5.5cqw;
+          top: 48cqh;
+        }
+        .line {
+          text-transform: lowercase;
+        }
+        .line .w {
+          display: inline-block;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        .line-dim {
+          font-size: 2.4cqw;
+          font-weight: 600;
+          line-height: 1.2;
+          letter-spacing: -0.02em;
+          color: rgba(238, 242, 247, 0.48);
+        }
+        .line-hero {
+          margin: 1.4cqh 0;
+          font-size: 7cqw;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          color: #eef2f7;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="07-paging" data-duration="7"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- full-bleed ground on its own clip layer -->
+        <div
+          class="clip bg"
+          id="p7-bg"
+          data-start="0"
+          data-duration="7"
+          data-track-index="0"
+        >
+          <div class="amber-glow" id="p7-glow"></div>
+        </div>
+
+        <!-- content -->
+        <div
+          class="clip content"
+          id="p7-content"
+          data-start="0"
+          data-duration="7"
+          data-track-index="1"
+        >
+          <div class="alert-card" id="p7-card">
+            <div class="card-row">
+              <div class="dot-wrap">
+                <div class="dot-halo" id="p7-dothalo"></div>
+                <div class="app-dot" id="p7-dot"></div>
+              </div>
+              <div class="card-main">
+                <div class="card-title-row">
+                  <span class="card-title">AnveInspect — MISSED WINDOW</span>
+                  <span class="card-time">now</span>
+                </div>
+                <div class="red-line" id="p7-redline"></div>
+                <div class="card-body">
+                  nightly-agent missed daily 03:00 —
+                  <span class="overdue">8h overdue</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lines" id="p7-lines">
+            <div class="line line-dim" id="p7-l1">
+              <span class="w">your</span> <span class="w">3am</span>
+              <span class="w">agent</span> <span class="w">didn&rsquo;t</span>
+              <span class="w">run.</span>
+            </div>
+            <div class="line line-hero" id="p7-l2">
+              <span class="w">you</span> <span class="w">got</span>
+              <span class="w">paged.</span>
+            </div>
+            <div class="line line-dim" id="p7-l3">
+              <span class="w">nobody</span> <span class="w">else</span>
+              <span class="w">noticed.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        (function () {
+          // 118bpm grid: beat ≈ 0.5085s, bar ≈ 2.034s
+          var tl = gsap.timeline({ paused: true });
+
+          /* ── Scene 1 (0.0–1.5s): amber tension glow blooms; the notification
+                 slide-up-crossfades in from the top edge (how notifications arrive),
+                 landing on beat 2 (~1.02s) — titlecard-reveal's ONE restrained move ── */
+          tl.fromTo(
+            "#p7-glow",
+            { opacity: 0, scale: 0.85 },
+            { opacity: 0.14, scale: 1, duration: 1.1, ease: "power2.out" },
+            0
+          );
+          tl.fromTo(
+            "#p7-card",
+            { y: -150, opacity: 0, scale: 0.985 },
+            { y: 0, opacity: 1, scale: 1, duration: 0.78, ease: "power3.out" },
+            0.27
+          );
+
+          /* ── Scene 2 (1.5–3.5s): the card sits; the red hairline pulses ONCE
+                 under the title, on bar 2 (2.034s) ── */
+          tl.fromTo(
+            "#p7-redline",
+            { opacity: 0, scaleX: 0 },
+            { opacity: 1, scaleX: 1, duration: 0.42, ease: "power2.out" },
+            2.034
+          );
+          tl.to(
+            "#p7-redline",
+            { opacity: 0, duration: 0.55, ease: "power2.inOut" },
+            2.62
+          );
+
+          /* ── Scene 3 (3.5–5.5s): three short lines per-word reveal on
+                 successive beats-of-the-grid; "you got paged." is the hero ── */
+          tl.fromTo(
+            "#p7-l1 .w",
+            { opacity: 0, y: 24 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.5,
+              ease: "power3.out",
+              stagger: 0.09,
+            },
+            3.56
+          );
+          tl.fromTo(
+            "#p7-l2 .w",
+            { opacity: 0, y: 42 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.6,
+              ease: "power3.out",
+              stagger: 0.11,
+            },
+            4.32
+          );
+          tl.fromTo(
+            "#p7-l3 .w",
+            { opacity: 0, y: 24 },
+            {
+              opacity: 1,
+              y: 0,
+              duration: 0.5,
+              ease: "power3.out",
+              stagger: 0.09,
+            },
+            5.08
+          );
+
+          /* ── Scene 4 (5.5–7.0s): DELIBERATE HELD READ. The only live element
+                 is the card's app dot — one slow bounded pulse (sine-wave-loop:
+                 finite phase tween, sin(0)=0 so it starts at rest, no loop) ── */
+          var dot = document.getElementById("p7-dot");
+          var halo = document.getElementById("p7-dothalo");
+          var phase = { p: 0 };
+          tl.to(
+            phase,
+            {
+              p: Math.PI * 2,
+              duration: 1.35,
+              ease: "none",
+              onUpdate: function () {
+                var s = Math.sin(phase.p);
+                dot.style.transform = "scale(" + (1 + s * 0.12) + ")";
+                halo.style.opacity = String(Math.max(0, s) * 0.5);
+              },
+            },
+            5.62
+          );
+
+          window.__timelines["07-paging"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

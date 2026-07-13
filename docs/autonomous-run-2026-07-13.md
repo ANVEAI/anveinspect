@@ -210,3 +210,21 @@ Surfaces not covered by Cycle 10, tested for real. 2 more bugs fixed:
   (3-step quickstart, verified on an empty db) + sidebar tagline.
 - connectors init no longer writes the empty-placeholder cloudflare/vertex trap.
 - 91 tests green (+5: 3 desktop-notify incl. failure-retry, 2 setup-bindings).
+
+### Cycle 12 (product promo video) — DONE (user-requested)
+- 61s product-motion promo rendered: videos/anveinspect-promo/renders/video.mp4
+  (1920x1080 h264 + aac, 20MB, mean -15.9dB / peak -1.9dB).
+- Pipeline: HyperFrames /product-launch-video — live-dashboard capture (real UI,
+  all views), Broadside preset remixed onto brand tokens (#0a0d12 ink / #3ecf8e
+  accent), 9-frame storyboard on a 118bpm grid, 9 parallel frame workers,
+  4 verified crossfades, MusicGen BGM (local; muxed post-render after the
+  assembler raced the pending track).
+- Story: 1,512-runs hook -> six-platforms problem -> wordmark + real UI dock ->
+  counted inventory (146/4/$9.3k) -> 9s lineage-graph hero (1,061x callout) ->
+  80% agents-spawning-agents stat -> missed-window alert -> no SDK/keys/changes
+  -> npx anveinspect doctor CTA. All stats real from this fleet.
+- Gate fixes: 5 missing root data-durations (broke transition inject), SFMono
+  font tokens in 4 frames, frame-6 line overflow (2270px line on a 1920 canvas).
+  Lint/validate/inspect 0 errors; contact sheets eyeballed before render.
+- Higgsfield note: its audio tool is speech-only (music model locked to the game
+  pipeline), so BGM came from local MusicGen instead.

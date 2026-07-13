@@ -1,0 +1,235 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is source-file metadata only; the runtime clones template contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root — never a class on the composition root. */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          container-type: size;
+          font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Full-bleed ground lives on a clip layer, never on #root. */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+
+        /* ── Scene 1–2: the platform-wordmark field ── */
+        .field {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .world {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+        .ghost-layer {
+          position: absolute;
+          inset: 0;
+          filter: blur(1.5px);
+        }
+        .tile-layer {
+          position: absolute;
+          inset: 0;
+        }
+        .mark {
+          position: absolute;
+          font-family: ui-monospace, Menlo, Consolas, monospace;
+          font-weight: 500;
+          letter-spacing: 0.02em;
+          text-transform: lowercase;
+          white-space: nowrap;
+          color: #eef2f7;
+          will-change: transform, opacity;
+        }
+        .mark.ghost {
+          color: #afb7b3;
+        }
+
+        /* ── Scene 4: the payoff statement ── */
+        .payoff {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          padding-top: 372px; /* optical center of the top-83% content area */
+        }
+        .payoff-line {
+          display: flex;
+          gap: 0.28em;
+          font-size: 140px;
+          font-weight: 600;
+          line-height: 1.05;
+          letter-spacing: -0.03em;
+          text-transform: lowercase;
+          color: #eef2f7;
+        }
+        .payoff-line + .payoff-line {
+          margin-top: 18px;
+        }
+        .w {
+          display: inline-block;
+          will-change: transform, opacity;
+        }
+        .w.accent {
+          color: #3ecf8e;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="02-problem"
+        data-duration="7.5"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- track 0 — full-duration ground (also IS the "empty ink-black" of the hard cut) -->
+        <div id="f02-ground" class="clip ground" data-start="0" data-duration="7.5" data-track-index="0"></div>
+
+        <!-- track 1 — the crowding wordmark field; clip ends at 4.0s = the hard cut -->
+        <div id="f02-field" class="clip field" data-start="0" data-duration="4" data-track-index="1">
+          <div id="f02-world" class="world">
+            <!-- depth layer 0 — dim ghost duplicates (scene 2 crowding) -->
+            <div class="ghost-layer">
+              <span class="mark ghost" data-t="2.80" data-o="0.26" style="left:250px;  top:200px; font-size:40px;">codex</span>
+              <span class="mark ghost" data-t="2.95" data-o="0.20" style="left:900px;  top:178px; font-size:36px;">hermes</span>
+              <span class="mark ghost" data-t="3.05" data-o="0.28" style="left:1500px; top:396px; font-size:44px;">claude code</span>
+              <span class="mark ghost" data-t="3.20" data-o="0.18" style="left:398px;  top:478px; font-size:38px;">cloudflare</span>
+              <span class="mark ghost" data-t="3.31" data-o="0.24" style="left:848px;  top:756px; font-size:42px;">vertex</span>
+              <span class="mark ghost" data-t="3.46" data-o="0.16" style="left:598px;  top:152px; font-size:34px;">claude code</span>
+              <span class="mark ghost" data-t="3.56" data-o="0.22" style="left:1598px; top:778px; font-size:40px;">openclaw</span>
+              <span class="mark ghost" data-t="3.66" data-o="0.15" style="left:1152px; top:722px; font-size:36px;">codex</span>
+              <span class="mark ghost" data-t="3.76" data-o="0.19" style="left:198px;  top:598px; font-size:34px;">hermes</span>
+              <span class="mark ghost" data-t="3.86" data-o="0.14" style="left:1348px; top:150px; font-size:34px;">vertex</span>
+            </div>
+            <!-- depth layer 1 — the six named platform wordmarks -->
+            <div class="tile-layer">
+              <span class="mark main" data-t="0.05" style="left:480px;  top:300px; font-size:64px;">claude code</span>
+              <span class="mark main" data-t="0.56" style="left:1260px; top:250px; font-size:72px;">codex</span>
+              <span class="mark main" data-t="1.07" style="left:700px;  top:560px; font-size:60px;">openclaw</span>
+              <span class="mark main" data-t="1.58" style="left:1380px; top:620px; font-size:68px;">hermes</span>
+              <span class="mark main" data-t="2.08" style="left:330px;  top:700px; font-size:58px;">vertex</span>
+              <span class="mark main" data-t="2.59" style="left:1050px; top:420px; font-size:62px;">cloudflare</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- track 1 — scene 4 payoff (starts after one full beat of nothing) -->
+        <div id="f02-payoff" class="clip payoff" data-start="4.5" data-duration="3" data-track-index="1">
+          <div class="payoff-line">
+            <span class="w" id="f02-w-six">six</span>
+            <span class="w" id="f02-w-platforms">platforms.</span>
+          </div>
+          <div class="payoff-line">
+            <span class="w accent" id="f02-w-zero">zero</span>
+            <span class="w" id="f02-w-visibility">visibility.</span>
+          </div>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        (function () {
+          var tl = gsap.timeline({ paused: true });
+
+          // 118bpm grid: beat = 0.5085s, bar = 2.0339s. Reveals land on this grid.
+
+          // ── Scene 1 (0–2s) + Scene 2 (2–4s): staggered cascade in waves ──
+          // grid-card-assemble (adapted): dense wall → each mark fades + slides a
+          // short distance DIRECTLY into its own slot (no center burst, no chrome).
+          var mains = gsap.utils.toArray("#f02-world .mark.main");
+          var arrivals = [];
+          mains.forEach(function (el) {
+            arrivals.push(Number(el.dataset.t));
+          });
+
+          mains.forEach(function (el, i) {
+            var t = arrivals[i];
+            // entrance: short-path slide into slot (fromTo — seek-safe)
+            tl.fromTo(
+              el,
+              { xPercent: -50, yPercent: -50, y: 26, scale: 0.94, opacity: 0 },
+              { y: 0, scale: 1, opacity: 1, duration: 0.6, ease: "power3.out" },
+              t
+            );
+            // older marks dim one step as each new wave arrives (2-depth crowding)
+            var cur = 1;
+            for (var j = i + 1; j < arrivals.length; j++) {
+              var next = Math.max(0.42, cur - 0.14);
+              tl.fromTo(
+                el,
+                { opacity: cur },
+                { opacity: next, duration: 0.35, ease: "power1.out", immediateRender: false },
+                arrivals[j]
+              );
+              cur = next;
+            }
+          });
+
+          // ghost duplicates multiply behind (crowding = the argument)
+          gsap.utils.toArray("#f02-world .mark.ghost").forEach(function (el) {
+            tl.fromTo(
+              el,
+              { xPercent: -50, yPercent: -50, y: 18, scale: 0.96, opacity: 0 },
+              { y: 0, scale: 1, opacity: Number(el.dataset.o), duration: 0.45, ease: "power2.out" },
+              Number(el.dataset.t)
+            );
+          });
+
+          // ── Scene 2 camera: slight continuous pull-back (viewport-change rule —
+          // single wrapper, one cam source of truth, world moves opposite camera) ──
+          var world = document.getElementById("f02-world");
+          var cam = { scale: 1 };
+          function applyCamera() {
+            world.style.transform = "scale(" + cam.scale + ")";
+          }
+          applyCamera();
+          tl.fromTo(
+            cam,
+            { scale: 1 },
+            { scale: 0.88, duration: 2.0, ease: "power1.inOut", onUpdate: applyCamera, immediateRender: false },
+            2.0
+          );
+
+          // ── Scene 3 (4.0–4.5s): hard cut to empty ink-black ──
+          // No tween: the field clip's data-duration ends at 4.0 (clip gating IS
+          // the cut — sub-drop lands here); one full beat of nothing follows.
+
+          // ── Scene 4 (4.5–7s): payoff — per-word reveals on the beat grid ──
+          function word(id, at, dur) {
+            tl.fromTo(
+              "#" + id,
+              { y: 44, opacity: 0 },
+              { y: 0, opacity: 1, duration: dur, ease: "power3.out" },
+              at
+            );
+          }
+          word("f02-w-six", 4.58, 0.55);        // beat 9
+          word("f02-w-platforms", 5.09, 0.55);  // beat 10
+          word("f02-w-zero", 6.10, 0.5);        // bar line — "zero" in accent green
+          word("f02-w-visibility", 6.32, 0.5);
+          // held read to 7.0 — the root transition owns the exit.
+
+          window.__timelines["02-problem"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,305 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- head is source-file metadata only; the runtime clones ONLY <template> contents -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root — never a class on the composition root (scoping drops it) */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: ui-monospace, Menlo, Consolas, monospace;
+        }
+
+        /* ---- full-bleed ground (dedicated clip layer, never on #root) ---- */
+        .ground {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+
+        /* ---- zoom stage (coordinate-target-zoom: outer scales, inner translates) ---- */
+        .stage {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+        }
+        .zoom-outer {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+        .zoom-inner {
+          position: absolute;
+          inset: 0;
+          will-change: transform;
+        }
+        .world {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1920px;
+          height: 1080px;
+        }
+        .shot {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1920px;
+          height: 1080px;
+          display: block;
+        }
+
+        /* hairline connectors live in one SVG overlay in image coordinates */
+        .conns {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: visible;
+          pointer-events: none;
+        }
+        .conn {
+          stroke: rgba(238, 242, 247, 0.5);
+          stroke-width: 1;
+          fill: none;
+        }
+
+        /* focus ring on the hub node */
+        .hubring {
+          position: absolute;
+          left: 821px;
+          top: 547px;
+          width: 56px;
+          height: 56px;
+          border: 2px solid #3ecf8e;
+          border-radius: 50%;
+          will-change: transform;
+        }
+
+        /* ---- callout pills — mono chrome, sharp corners, 1px hairline border ---- */
+        .callout {
+          position: absolute;
+          background: rgba(10, 13, 18, 0.92);
+          border: 1px solid rgba(238, 242, 247, 0.22);
+          color: #eef2f7;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          font-weight: 500;
+          white-space: nowrap;
+          padding: 13px 20px;
+          will-change: transform;
+        }
+        .callout1 {
+          left: 1120px;
+          top: 352px;
+          font-size: 20px;
+          transform-origin: 0% 100%;
+        }
+        .callout2 {
+          left: 386px;
+          top: 272px;
+          font-size: 20px;
+          transform-origin: 100% 100%;
+        }
+        .callout2 .num {
+          color: #3ecf8e;
+          font-size: 30px;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: 0.04em;
+          margin-right: 6px;
+        }
+
+        /* screen-space summary pill, lower-right, above the 83% keep-out */
+        .callout3 {
+          right: 106px;
+          top: 822px;
+          font-size: 21px;
+          color: rgba(238, 242, 247, 0.85);
+          transform-origin: 50% 100%;
+        }
+
+        /* ---- screen-space vignette: dims edges ~35%, hub stays bright ---- */
+        .vignette {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: radial-gradient(
+            ellipse 62% 58% at 50% 48%,
+            rgba(4, 6, 9, 0) 0%,
+            rgba(4, 6, 9, 0) 42%,
+            rgba(4, 6, 9, 0.35) 76%,
+            rgba(4, 6, 9, 0.62) 100%
+          );
+        }
+      </style>
+
+      <div id="root" data-composition-id="05-lineage" data-duration="9" data-width="1920" data-height="1080">
+        <!-- full-bleed ground on its own clip layer -->
+        <div class="ground clip" data-start="0" data-duration="9" data-track-index="0"></div>
+
+        <!-- the hero surface + in-world callouts, driven by the one continuous push -->
+        <div class="stage clip" data-start="0" data-duration="9" data-track-index="1">
+          <div class="zoom-outer" id="lineage05-zoom-outer">
+            <div class="zoom-inner" id="lineage05-zoom-inner">
+              <div class="world" data-layout-allow-overflow>
+                <img
+                  class="shot"
+                  id="lineage05-shot"
+                  src="assets/view-lineage.png"
+                  alt=""
+                />
+                <svg class="conns" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+                  <!-- hub → callout 1 (len ≈ 294) -->
+                  <line
+                    id="lineage05-conn1"
+                    class="conn"
+                    x1="874"
+                    y1="559"
+                    x2="1120"
+                    y2="398"
+                    stroke-dasharray="294"
+                  />
+                  <!-- heaviest-edge midpoint → callout 2 (len ≈ 190) -->
+                  <line
+                    id="lineage05-conn2"
+                    class="conn"
+                    x1="795"
+                    y1="462"
+                    x2="662"
+                    y2="326"
+                    stroke-dasharray="190"
+                  />
+                </svg>
+                <div class="hubring" id="lineage05-hubring"></div>
+                <div class="callout callout1" id="lineage05-callout1">who spawns whom</div>
+                <div class="callout callout2" id="lineage05-callout2">
+                  <span class="num">1,061&times;</span>spawns
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- screen-space vignette above the stage -->
+        <div
+          class="vignette clip"
+          id="lineage05-vignette"
+          data-start="0"
+          data-duration="9"
+          data-track-index="2"
+        ></div>
+
+        <!-- screen-space summary callout, lower-right (above y=900 keep-out) -->
+        <div
+          class="callout callout3 clip"
+          id="lineage05-callout3"
+          data-start="0"
+          data-duration="9"
+          data-track-index="3"
+        >
+          22 agents &middot; 21 relationships
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        (function () {
+          const tl = gsap.timeline({ paused: true });
+
+          /* ------------------------------------------------------------------
+           * Macro camera — ONE continuous push for the whole shot (0 → 7.5s).
+           * coordinate-target-zoom: outer scales around center, inner counter-
+           * translates by T = -offset. Hub node center in image coords is
+           * (849, 575); the image is mounted full-bleed at exactly 1920×1080,
+           * so offset = (849-960, 575-540) = (-111, 35) → T = (111, -35).
+           * Both tweens share duration + ease so the target never wanders.
+           * ------------------------------------------------------------------ */
+          tl.fromTo(
+            "#lineage05-zoom-outer",
+            { scale: 1 },
+            { scale: 1.35, duration: 7.5, ease: "power1.inOut" },
+            0
+          );
+          tl.fromTo(
+            "#lineage05-zoom-inner",
+            { x: 0, y: 0 },
+            { x: 111, y: -35, duration: 7.5, ease: "power1.inOut" },
+            0
+          );
+
+          /* Scene 1 (0–2s): vignette resolves, edges dim ~35%, focus builds */
+          tl.fromTo(
+            "#lineage05-vignette",
+            { opacity: 0 },
+            { opacity: 1, duration: 1.6, ease: "power2.out" },
+            0.1
+          );
+
+          /* Scene 2 (2–4s): hub ring + hairline connector draw, then callout 1
+           * spring-pops from its connector anchor (power3.out settle, no overshoot) */
+          tl.fromTo(
+            "#lineage05-hubring",
+            { opacity: 0, scale: 0.4 },
+            { opacity: 1, scale: 1, duration: 0.6, ease: "power3.out", transformOrigin: "50% 50%" },
+            2.0
+          );
+          tl.fromTo(
+            "#lineage05-conn1",
+            { strokeDashoffset: 294 },
+            { strokeDashoffset: 0, duration: 0.45, ease: "power2.inOut" },
+            2.05
+          );
+          tl.fromTo(
+            "#lineage05-callout1",
+            { scale: 0, opacity: 0 },
+            { scale: 1, opacity: 1, duration: 0.55, ease: "power3.out" },
+            2.3
+          );
+
+          /* Scene 3 (4–6s): callout 2 lands on the heaviest edge; callout 1 dims to 60% */
+          tl.fromTo(
+            "#lineage05-conn2",
+            { strokeDashoffset: 190 },
+            { strokeDashoffset: 0, duration: 0.4, ease: "power2.inOut" },
+            4.0
+          );
+          tl.fromTo(
+            "#lineage05-callout2",
+            { scale: 0, opacity: 0 },
+            { scale: 1, opacity: 1, duration: 0.55, ease: "power3.out" },
+            4.2
+          );
+          tl.to(
+            "#lineage05-callout1, #lineage05-conn1, #lineage05-hubring",
+            { opacity: 0.6, duration: 0.5, ease: "power2.out" },
+            4.0
+          );
+
+          /* Scene 4 (6–7.5s): screen-space summary rises lower-right as the push settles */
+          tl.fromTo(
+            "#lineage05-callout3",
+            { y: 26, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" },
+            6.0
+          );
+
+          /* Scene 5 (7.5–9s): stillness — the longest held read in the video.
+           * No exit: the root transition owns it. */
+
+          window.__timelines["05-lineage"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
