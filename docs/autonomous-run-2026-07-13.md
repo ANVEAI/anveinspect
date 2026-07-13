@@ -94,3 +94,19 @@ what's running, why, agent insights, and control, in a single dashboard.
   human-readable labels.
 - verified live: 1196 subagent-spawned vs 307 interactive runs — 80% of fleet
   activity is agents spawning agents. Card renders, no console errors, 76 tests green.
+
+### 2-hour continuous test — PASSED
+- Ran 04:11 → 06:14 IST, 10 iterations (scan + check every 12 min). Rock stable
+  throughout: 146 agents, 1 alert, 8 stale, zero crashes or drift.
+- Iterations 4-10 (04:48 on) ran AFTER the Cycle 6/7 code changes landed and stayed
+  green — the hardened read paths held up under continuous re-scan on the live fleet.
+- Restarted a second window (continuous-run-2.log) to keep validating until the
+  user returns ~09:30.
+
+## Session summary (post-compaction cycles)
+- Cycle 6 (3a06db0): adversarial hardening — 8 of 9 Codex findings fixed
+- Cycle 7 (591907c): "why running" trigger insight (1196 subagent vs 307 interactive)
+- 1382abb: partial-pricing count surfaced in CLI
+- Final state: 76 tests green, typecheck clean, 16 MCP tools, 6 dashboard views,
+  all endpoints 200, 2h continuous test passed. Product covers the full goal:
+  what's running / why running / insights / control in one dashboard.
