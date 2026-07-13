@@ -188,7 +188,8 @@ non-negotiables (never break the watchdog, honest data only, read-only outward).
   degrades gracefully across version drift.
 - Cloud connectors are catalog-only in v1 (inventory + metadata staleness, not
   per-run telemetry — that lives in each cloud's monitoring stack).
-- Standing watch is macOS launchd today (Linux systemd/cron is a small follow-up).
+- Standing watch installs a macOS launchd job; on Linux, `schedule install` prints a
+  ready-to-paste cron line for the same `tick` (scan → check → deliver) instead.
 
 ## Contributing & security
 

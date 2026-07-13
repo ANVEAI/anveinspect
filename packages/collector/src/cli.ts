@@ -274,17 +274,36 @@ try {
     }
     case 'schedule': {
       const sub = args[1] ?? 'status';
+      // Single-quote the paths for the shell (handles spaces/&/backticks) THEN
+      // XML-escape the whole command string. A silently-dead scheduler is the
+      // worst failure mode for a watchdog, so both layers must be correct.
+      const sh = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+      const tickCmd = IS_BUNDLED
+        ? `node ${sh(CLI_PATH)} tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`
+        : `cd ${sh(REPO_ROOT)} && npx tsx packages/collector/src/cli.ts tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`;
+      // launchd is macOS-only. On Linux/other, writing a plist gives the user a
+      // watchdog that silently never fires — so hand them a real cron line instead.
+      if (sub === 'install' && process.platform !== 'darwin') {
+        const cron = `*/15 * * * * ${tickCmd}`;
+        out(
+          { platform: process.platform, scheduler: 'cron', cronLine: cron, supported: false },
+          () =>
+            [
+              `Standing watch via launchd is macOS-only; on ${process.platform} use cron (or a systemd timer).`,
+              `Add this line with "crontab -e" (runs scan -> check -> deliver every 15 min):`,
+              ``,
+              `  ${cron}`,
+              ``,
+              `logs: ~/.anveinspect/tick.log`,
+            ].join('\n'),
+        );
+        break;
+      }
       if (sub === 'install') {
         mkdirSync(dirname(PLIST_PATH), { recursive: true });
-        // Single-quote the paths for the shell (handles spaces/&/backticks) THEN
-        // XML-escape the whole command string. A silently-dead scheduler is the
-        // worst failure mode for a watchdog, so both layers must be correct.
-        const sh = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
         const xml = (s: string) =>
           s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const command = IS_BUNDLED
-          ? `node ${sh(CLI_PATH)} tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`
-          : `cd ${sh(REPO_ROOT)} && npx tsx packages/collector/src/cli.ts tick >> ${sh(join(homedir(), '.anveinspect', 'tick.log'))} 2>&1`;
+        const command = tickCmd;
         const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>

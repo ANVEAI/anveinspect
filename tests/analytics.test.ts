@@ -12,6 +12,19 @@ describe('costOf', () => {
     expect(r.priced).toBe(true);
     expect(r.usd).toBeCloseTo(3 + 15, 4); // $3 input + $15 output per 1M
   });
+  it('prices cache-read and cache-creation tokens by their own rates (golden)', () => {
+    // sonnet: input 3, output 15, cacheRead 0.3, cacheWrite 3.75 per MTok
+    const r = costOf({ 'claude-sonnet-5': { input: 1e6, output: 1e6, cacheRead: 1e6, cacheCreation: 1e6 } }, DEFAULT_RATES);
+    expect(r.usd).toBeCloseTo(3 + 15 + 0.3 + 3.75, 4); // 22.05 — every token class counted
+  });
+  it('falls back to input×0.1 (cache read) and input×1.25 (cache write) when a rate omits them', () => {
+    // a custom rate with no cache fields -> the documented fallbacks apply
+    const r = costOf(
+      { m: { input: 0, output: 0, cacheRead: 1e6, cacheCreation: 1e6 } },
+      { m: { input: 10, output: 20 } },
+    );
+    expect(r.usd).toBeCloseTo(10 * 0.1 + 10 * 1.25, 4); // 13.5
+  });
   it('unknown model contributes 0 and is flagged unpriced (never a fake number)', () => {
     const r = costOf({ 'some-future-model': { input: 1e6, output: 1e6, cacheCreation: 0, cacheRead: 0 } }, DEFAULT_RATES);
     expect(r.priced).toBe(false);

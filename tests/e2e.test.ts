@@ -144,4 +144,21 @@ describe('e2e: operator lifecycle through the CLI', () => {
     }
     expect(threw).toBe(true);
   });
+
+  it('schedule install on a non-macOS platform prints a cron line, not a dead plist', () => {
+    // Override process.platform in a child so the real macOS run isn't affected.
+    const wrapper = join(dirname(fileURLToPath(import.meta.url)), '..', 'tests', '.fake-linux.mjs');
+    writeFileSync(
+      wrapper,
+      `Object.defineProperty(process,'platform',{value:'linux'});await import(${JSON.stringify(CLI)});`,
+    );
+    try {
+      const out = execFileSync('npx', ['tsx', wrapper, 'schedule', 'install'], { env, encoding: 'utf8' });
+      expect(out).toContain('cron'); // a real Linux scheduler, not launchd
+      expect(out).toContain('*/15 * * * *'); // the ready-to-paste crontab line
+      expect(out).not.toContain('launchctl');
+    } finally {
+      rmSync(wrapper, { force: true });
+    }
+  });
 });

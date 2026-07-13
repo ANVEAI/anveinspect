@@ -126,6 +126,15 @@ describe('lastExpectedFire DST safety', () => {
     expect(fire.getHours()).toBe(9); // wall-clock preserved through the DST Sunday
     expect(fire.getMinutes()).toBe(0);
   });
+  it('preserves wall-clock across a fall-back Sunday too (US DST ends 2026-11-01)', () => {
+    // Monday after the fall-back: yesterday's daily 03:00 must still read 03:00 local,
+    // not drift to 02:00/04:00 when the clocks rolled back an hour.
+    const monAfterFallback = new Date(2026, 10, 2, 8, 0, 0); // Mon 2026-11-02 08:00 local
+    const fire = lastExpectedFire(parseExpect('daily 03:00'), monAfterFallback)!;
+    expect(fire.getHours()).toBe(3);
+    expect(fire.getMinutes()).toBe(0);
+    expect(fire.getDate()).toBe(2); // today's 03:00 (already passed by 08:00)
+  });
 });
 
 describe('checkTokenSpike', () => {
