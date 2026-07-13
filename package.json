@@ -5,9 +5,14 @@
   "description": "See every AI agent you run — across Claude Code, Codex, and your clouds. Who spawned what, what it costs, and a page when one silently stops.",
   "keywords": ["ai-agents", "observability", "claude-code", "codex", "mcp", "agent-fleet", "lineage", "monitoring"],
   "license": "MIT",
+  "author": "ANVEAI",
+  "homepage": "https://github.com/ANVEAI/anveinspect#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ANVEAI/anveinspect.git"
+    "url": "git+https://github.com/ANVEAI/anveinspect.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ANVEAI/anveinspect/issues"
   },
   "workspaces": [
     "packages/*",

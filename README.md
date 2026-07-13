@@ -1,5 +1,10 @@
 # AnveInspect
 
+[![CI](https://github.com/ANVEAI/anveinspect/actions/workflows/ci.yml/badge.svg)](https://github.com/ANVEAI/anveinspect/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](package.json)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-blue.svg)](CONTRIBUTING.md)
+
 **See every AI agent you run — what it costs, who spawned what, and get paged
 when one silently stops.**
 
@@ -167,11 +172,15 @@ One shared query layer feeds CLI, MCP, and dashboard — identical numbers every
 ## Development
 
 ```bash
-npm test          # 50+ tests (unit, e2e, adapters, cadence/DST, spool, codex)
+npm install
+npm test          # 100 tests (unit, e2e, fuzz, scale, adapters, cadence/DST, dashboard)
 npm run typecheck # 0 errors
+npm run dash      # dashboard at http://localhost:4177
 ```
 
 CI (GitHub Actions) runs typecheck + tests + an MCP handshake on every push.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and the three
+non-negotiables (never break the watchdog, honest data only, read-only outward).
 
 ## Known constraints
 
@@ -180,5 +189,15 @@ CI (GitHub Actions) runs typecheck + tests + an MCP handshake on every push.
 - Cloud connectors are catalog-only in v1 (inventory + metadata staleness, not
   per-run telemetry — that lives in each cloud's monitoring stack).
 - Standing watch is macOS launchd today (Linux systemd/cron is a small follow-up).
+
+## Contributing & security
+
+Contributions welcome — start with [CONTRIBUTING.md](CONTRIBUTING.md). Please report
+security issues privately per [SECURITY.md](SECURITY.md), never in a public issue.
+By participating you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+[MIT](LICENSE) © ANVEAI
 
 MIT licensed.

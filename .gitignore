@@ -1,9 +1,34 @@
+# dependencies & build output
 node_modules/
 dist/
+*.tsbuildinfo
+
+# local fleet database (rebuildable cache)
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-.DS_Store
-.env
 fleet-data/
+
+# secrets & local config
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# logs & coverage
+*.log
+coverage/
+
+# promo video build artifacts (source is kept; heavy outputs are not)
+videos/**/renders/
+videos/**/capture/
+videos/**/capture-*/
+videos/**/snapshots/
+videos/**/.hyperframes/
+videos/**/.media/
+*.mp4

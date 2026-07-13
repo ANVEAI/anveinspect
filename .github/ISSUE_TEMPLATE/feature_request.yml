@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an idea or improvement for AnveInspect
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the fleet-operations pain, not just the feature.
+      placeholder: When I run N agents across M platforms I can't tell …
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      placeholder: A view / tool / metric that …
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
