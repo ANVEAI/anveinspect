@@ -25,6 +25,8 @@ import {
   lineageSummary,
   topLineageRoots,
   lineageTree,
+  agentGraph,
+  subagentHealth,
   computeAnalytics,
   addTag,
   removeTag,
@@ -384,7 +386,7 @@ server.registerTool(
   {
     title: 'Agent lineage',
     description:
-      'Spawn lineage — what spawned what. With no argument: fleet lineage summary (total edges, roots, max depth, widest fan-out, spawns by platform) + top roots by descendant count. With run_id: the full spawn tree rooted at that run (parent → children with tokens/status). Use to answer "why is this running / what did X spawn / what has the deepest agent chains".',
+      'Spawn lineage + agent relationships. With no argument: fleet lineage summary, top roots, the agent-to-agent relationship graph (who spawns whom, with per-relationship tokens and data volume sent down / returned up), and subagent health (active/idle/stale). With run_id: the full spawn tree rooted at that run (parent → children with tokens/status). Use to answer "why is this running / who works with whom / how do agents share data / which subagents are stale".',
     inputSchema: {
       run_id: z.string().optional().describe('A run id (from fleet_lineage roots or fleet_agent_detail) to expand its spawn tree; omit for the fleet summary'),
     },
@@ -401,11 +403,19 @@ server.registerTool(
       }
       const summary = lineageSummary(db);
       const roots = topLineageRoots(db, 20);
+      const relationships = agentGraph(db, 50);
+      const subagents = subagentHealth(db);
       db.close();
+      const names = new Map(relationships.nodes.map((n) => [n.fingerprint, n.name]));
+      const topRel = relationships.edges
+        .slice(0, 3)
+        .map((e) => `${names.get(e.source) ?? '?'}→${names.get(e.target) ?? '?'} (${e.spawns}x${e.tokens === null ? '' : `, ${Math.round(e.tokens / 1000)}k tok`})`)
+        .join(', ');
       return ok(
-        { summary, roots },
+        { summary, roots, relationships, subagents },
         `${summary.totalEdges} spawn edges across ${summary.rootsWithChildren} roots (max depth ${summary.maxDepth}). ` +
-          (summary.widestFanout ? `Widest: ${summary.widestFanout.agentName} spawned ${summary.widestFanout.children}. ` : '') +
+          `Subagents: ${subagents.active} active / ${subagents.idle} idle / ${subagents.stale} stale of ${subagents.total}. ` +
+          (topRel ? `Heaviest relationships: ${topRel}. ` : '') +
           `Top roots: ${roots.slice(0, 5).map((r) => `${r.agentName} (${r.descendantCount})`).join(', ')}.`,
       );
     }),

@@ -122,3 +122,22 @@ what's running, why, agent insights, and control, in a single dashboard.
   passes so 22 labels stay readable; sim stops when the view unmounts.
 - verified live: 22 agents / 21 relationships, voice-forms hub (1061x -> workflow-
   subagent), click-through to drawer works, no console errors. 79 tests green (+3).
+
+### Cycle 9 (relationship intelligence) — DONE (user-requested)
+- Research first: subagent JSONLs carry the payload both ways (first user msg =
+  parent→child prompt, last assistant msg = child→parent result); meta.json has
+  agentType; run rows already have start/end for temporal overlap.
+- Data sharing: spawns.prompt_chars/result_chars (additive migration, rescan
+  backfills via insertSpawn upsert); scanner extracts both via contentChars().
+- agentGraph edges enriched: tokens (child consumption per relationship),
+  dataDown/dataUp chars; nodes get activity status (active<24h/idle/stale>7d).
+- subagentHealth(): active/idle/stale/total of subagent-triggered agents.
+- runTimeline(): Gantt-ready rows (root + BFS descendants, chronological,
+  open-ended runs stay null-ended).
+- Dashboard Lineage: 2 new KPIs (active/stale subagents), "Data flow per
+  relationship" table (spawns/tokens/data↓/data↑/status pill/last active),
+  "Activity windows" Gantt w/ root selector + hover detail; node tooltips show status.
+- MCP parity: fleet_lineage now returns relationships + subagents and narrates them.
+- verified live: voice-forms→workflow-subagent = 1061 spawns / 21.4M tok / 4.2M ch
+  down / 2.0M ch up; subagents 2 active / 7 idle / 12 stale of 21; Gantt shows
+  main-agent bar vs subagent burst windows. 84 tests green (+5), no console errors.

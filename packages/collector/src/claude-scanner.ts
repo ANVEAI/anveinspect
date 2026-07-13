@@ -52,6 +52,10 @@ interface SessionAcc {
   lineCount: number;
   corruptLines: number;
   endedCleanly: boolean;
+  /** chars of the FIRST user message — for subagent files this is the payload the parent sent down */
+  firstUserChars: number | null;
+  /** chars of the LAST assistant message — for subagent files this is what the child returned up */
+  lastAssistantChars: number | null;
 }
 
 export function machineId(): string {
@@ -228,7 +232,13 @@ class ScanResultBuilder {
       // agent's own composite id, and the containment gives the spawn edge.
       const runId = isSubagent ? `${parentSessionId}/${agentId}` : acc.sessionId;
       if (isSubagent) {
-        spawns.push({ parentRunId: parentSessionId!, childRunId: runId, confidence: 1.0 });
+        spawns.push({
+          parentRunId: parentSessionId!,
+          childRunId: runId,
+          confidence: 1.0,
+          promptChars: acc.firstUserChars, // what the parent sent down
+          resultChars: acc.lastAssistantChars, // what the child returned up
+        });
       }
       runs.push({
         id: runId,
@@ -272,6 +282,8 @@ function accumulateFileSync(path: string, seenUsage: Set<string>): SessionAcc | 
     lineCount: 0,
     corruptLines: 0,
     endedCleanly: false,
+    firstUserChars: null,
+    lastAssistantChars: null,
   };
   for (const line of raw.split('\n')) {
     if (!line.trim()) continue;
@@ -338,8 +350,29 @@ function ingestLine(obj: any, acc: SessionAcc, seenUsage: Set<string>): void {
     }
     // stop_reason end_turn = the model finished a turn cleanly (research finding E)
     acc.endedCleanly = obj.message.stop_reason === 'end_turn';
+    const chars = contentChars(obj.message.content);
+    if (chars !== null) acc.lastAssistantChars = chars; // keep overwriting — final assistant msg wins
   }
-  if (obj.type === 'user') acc.endedCleanly = false;
+  if (obj.type === 'user') {
+    acc.endedCleanly = false;
+    if (acc.firstUserChars === null && obj.message) {
+      acc.firstUserChars = contentChars(obj.message.content); // first user msg = payload sent down
+    }
+  }
+}
+
+/** Size of a message's content in chars — string or block-array shapes, never throws. */
+function contentChars(content: unknown): number | null {
+  if (typeof content === 'string') return content.length;
+  if (Array.isArray(content)) {
+    let n = 0;
+    for (const block of content as any[]) {
+      if (typeof block?.text === 'string') n += block.text.length;
+      else if (block) n += JSON.stringify(block).length; // tool_use/tool_result blocks: measure the payload
+    }
+    return n;
+  }
+  return null;
 }
 
 export function resolveProjectIdentity(

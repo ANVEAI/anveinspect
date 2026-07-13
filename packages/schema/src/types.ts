@@ -82,6 +82,10 @@ export interface Spawn {
   childRunId: string;
   /** within-session subagent trees ≈ 1.0; heuristic cross-session links < 1.0 */
   confidence: number;
+  /** chars the parent sent DOWN (the child's first user message); null = unknown/legacy scan */
+  promptChars?: number | null;
+  /** chars the child returned UP (its final assistant message); null = unknown/legacy scan */
+  resultChars?: number | null;
 }
 
 export type CadenceOrigin = 'file' | 'ui';

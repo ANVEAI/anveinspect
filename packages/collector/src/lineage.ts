@@ -151,6 +151,8 @@ export function topLineageRoots(db: Database.Database, limit = 20): { runId: str
   });
 }
 
+export type ActivityStatus = 'active' | 'idle' | 'stale';
+
 export interface AgentGraphNode {
   fingerprint: string;
   name: string;
@@ -158,6 +160,8 @@ export interface AgentGraphNode {
   runs: number; // total recorded runs for this agent
   spawnsOut: number; // times this agent spawned another agent
   spawnsIn: number; // times this agent was spawned by another agent
+  lastRunAt: string | null;
+  status: ActivityStatus; // active = ran <24h ago · idle = 1-7d · stale = >7d / never
 }
 
 export interface AgentGraphEdge {
@@ -165,6 +169,9 @@ export interface AgentGraphEdge {
   target: string; // child agent fingerprint
   spawns: number; // how many parent-run -> child-run edges collapse into this pair
   lastSpawnAt: string | null;
+  tokens: number | null; // total tokens the child consumed across this relationship (null = unavailable)
+  dataDown: number | null; // total chars the parent sent down (null = no payload data captured yet)
+  dataUp: number | null; // total chars the child returned up
 }
 
 export interface AgentGraph {
@@ -173,39 +180,66 @@ export interface AgentGraph {
   truncated: boolean; // true if edges were capped — the graph shows the heaviest relationships
 }
 
+function activityStatus(lastRunAt: string | null, now: number): ActivityStatus {
+  if (!lastRunAt) return 'stale';
+  const age = now - Date.parse(lastRunAt);
+  if (Number.isNaN(age)) return 'stale';
+  if (age <= 24 * 3_600_000) return 'active';
+  if (age <= 7 * 86_400_000) return 'idle';
+  return 'stale';
+}
+
 /** Agent-to-agent relationship graph: collapse run-level spawn edges onto agent
  *  identities. This is the "who works with whom" view — run trees show one
- *  execution; this shows the standing relationships across ALL executions. */
-export function agentGraph(db: Database.Database, maxEdges = 150): AgentGraph {
-  // one aggregate query: parent agent -> child agent with spawn counts
+ *  execution; this shows the standing relationships across ALL executions.
+ *  Edges carry HOW the pair shares work: spawn count, tokens the child burned,
+ *  and payload volume in both directions (parent prompt down / child result up). */
+export function agentGraph(db: Database.Database, maxEdges = 150, now = new Date()): AgentGraph {
+  // per-spawn rows (not GROUP BY): child token blobs are JSON, so aggregate in JS
   const rows = db
     .prepare(
-      `SELECT pa.fingerprint AS pfp, ca.fingerprint AS cfp,
-              COUNT(*) AS spawns, MAX(cr.started_at) AS last_spawn_at
+      `SELECT pr.agent_fingerprint AS pfp, cr.agent_fingerprint AS cfp,
+              cr.started_at AS child_started_at, cr.tokens_by_model AS child_tokens,
+              s.prompt_chars, s.result_chars
        FROM spawns s
        JOIN runs pr ON pr.id = s.parent_run_id
-       JOIN runs cr ON cr.id = s.child_run_id
-       JOIN agents pa ON pa.fingerprint = pr.agent_fingerprint
-       JOIN agents ca ON ca.fingerprint = cr.agent_fingerprint
-       GROUP BY pa.fingerprint, ca.fingerprint
-       ORDER BY spawns DESC`,
+       JOIN runs cr ON cr.id = s.child_run_id`,
     )
     .all() as any[];
-  const truncated = rows.length > maxEdges;
-  const kept = rows.slice(0, maxEdges); // keep the heaviest relationships, never an unrenderable hairball
+  type Pair = { pfp: string; cfp: string; spawns: number; lastSpawnAt: string | null; tokens: number | null; dataDown: number | null; dataUp: number | null };
+  const pairs = new Map<string, Pair>();
+  for (const r of rows) {
+    const key = `${r.pfp} ${r.cfp}`;
+    const p = pairs.get(key) ?? { pfp: r.pfp, cfp: r.cfp, spawns: 0, lastSpawnAt: null, tokens: null, dataDown: null, dataUp: null };
+    p.spawns += 1;
+    if (r.child_started_at && (!p.lastSpawnAt || r.child_started_at > p.lastSpawnAt)) p.lastSpawnAt = r.child_started_at;
+    const tok = tokensOf(r.child_tokens);
+    if (tok !== null) p.tokens = (p.tokens ?? 0) + tok; // unavailable stays null, never fake 0
+    if (typeof r.prompt_chars === 'number') p.dataDown = (p.dataDown ?? 0) + r.prompt_chars;
+    if (typeof r.result_chars === 'number') p.dataUp = (p.dataUp ?? 0) + r.result_chars;
+    pairs.set(key, p);
+  }
+  const ranked = [...pairs.values()].sort((a, b) => b.spawns - a.spawns);
+  const truncated = ranked.length > maxEdges;
+  const kept = ranked.slice(0, maxEdges); // keep the heaviest relationships, never an unrenderable hairball
   const fps = new Set<string>();
   for (const e of kept) { fps.add(e.pfp); fps.add(e.cfp); }
   if (fps.size === 0) return { nodes: [], edges: [], truncated: false };
   const placeholders = [...fps].map(() => '?').join(',');
   const agentRows = db
     .prepare(
-      `SELECT a.fingerprint, a.display_name, a.vendor,
+      `SELECT a.fingerprint, a.display_name, a.vendor, a.last_run_at,
               (SELECT COUNT(*) FROM runs r WHERE r.agent_fingerprint = a.fingerprint) AS runs
        FROM agents a WHERE a.fingerprint IN (${placeholders})`,
     )
     .all(...fps) as any[];
+  const nowMs = now.getTime();
   const nodes = new Map<string, AgentGraphNode>(
-    agentRows.map((a) => [a.fingerprint, { fingerprint: a.fingerprint, name: a.display_name, vendor: a.vendor, runs: a.runs, spawnsOut: 0, spawnsIn: 0 }]),
+    agentRows.map((a) => [a.fingerprint, {
+      fingerprint: a.fingerprint, name: a.display_name, vendor: a.vendor, runs: a.runs,
+      spawnsOut: 0, spawnsIn: 0, lastRunAt: a.last_run_at ?? null,
+      status: activityStatus(a.last_run_at ?? null, nowMs),
+    }]),
   );
   const edges: AgentGraphEdge[] = [];
   for (const e of kept) {
@@ -214,9 +248,85 @@ export function agentGraph(db: Database.Database, maxEdges = 150): AgentGraph {
     if (!p || !c) continue; // agent row vanished mid-read — skip the edge, never crash
     p.spawnsOut += e.spawns;
     c.spawnsIn += e.spawns;
-    edges.push({ source: e.pfp, target: e.cfp, spawns: e.spawns, lastSpawnAt: e.last_spawn_at ?? null });
+    edges.push({ source: e.pfp, target: e.cfp, spawns: e.spawns, lastSpawnAt: e.lastSpawnAt, tokens: e.tokens, dataDown: e.dataDown, dataUp: e.dataUp });
   }
   return { nodes: [...nodes.values()], edges, truncated };
+}
+
+export interface SubagentHealth {
+  total: number; // agents that exist because another agent spawned them
+  active: number; // ran within the last 24h
+  idle: number; // 1-7 days quiet
+  stale: number; // >7 days quiet (or never ran)
+}
+
+/** Health of the subagent population — "how alive is the delegated workforce". */
+export function subagentHealth(db: Database.Database, now = new Date()): SubagentHealth {
+  const rows = db
+    .prepare(`SELECT last_run_at FROM agents WHERE trigger_source = 'subagent'`)
+    .all() as any[];
+  const nowMs = now.getTime();
+  const out: SubagentHealth = { total: rows.length, active: 0, idle: 0, stale: 0 };
+  for (const r of rows) out[activityStatus(r.last_run_at ?? null, nowMs)] += 1;
+  return out;
+}
+
+export interface TimelineRow {
+  runId: string;
+  agentName: string;
+  vendor: string;
+  isRoot: boolean;
+  startedAt: string | null;
+  endedAt: string | null;
+  status: string;
+  tokens: number | null;
+  promptChars: number | null; // payload the parent sent this run (null for the root / unknown)
+  resultChars: number | null; // payload this run returned to its parent
+}
+
+/** Temporal view of one execution: WHEN the main agent was active and when each
+ *  subagent was active, with tokens + payload sizes. Rows are Gantt-ready. */
+export function runTimeline(db: Database.Database, rootRunId: string, maxRows = 80): TimelineRow[] {
+  const runStmt = db.prepare(
+    `SELECT r.id, r.started_at, r.ended_at, r.status, r.tokens_by_model, a.display_name, a.vendor
+     FROM runs r JOIN agents a ON a.fingerprint = r.agent_fingerprint WHERE r.id = ?`,
+  );
+  const childStmt = db.prepare(
+    `SELECT child_run_id, prompt_chars, result_chars FROM spawns WHERE parent_run_id = ? LIMIT 500`,
+  );
+  const root = runStmt.get(rootRunId) as any;
+  if (!root) return [];
+  const rows: TimelineRow[] = [];
+  const seen = new Set<string>();
+  const push = (r: any, isRoot: boolean, promptChars: number | null, resultChars: number | null) => {
+    rows.push({
+      runId: r.id, agentName: r.display_name, vendor: r.vendor, isRoot,
+      startedAt: r.started_at, endedAt: r.ended_at, status: r.status,
+      tokens: tokensOf(r.tokens_by_model), promptChars, resultChars,
+    });
+  };
+  push(root, true, null, null);
+  seen.add(rootRunId);
+  // BFS the spawn tree so nested subagents land on the timeline too
+  let frontier = [rootRunId];
+  while (frontier.length && rows.length < maxRows) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      for (const c of childStmt.all(id) as any[]) {
+        if (seen.has(c.child_run_id) || rows.length >= maxRows) continue;
+        seen.add(c.child_run_id);
+        const r = runStmt.get(c.child_run_id) as any;
+        if (!r) continue;
+        push(r, false, c.prompt_chars ?? null, c.result_chars ?? null);
+        next.push(c.child_run_id);
+      }
+    }
+    frontier = next;
+  }
+  // chronological: the Gantt reads top-down in start order, root pinned first
+  const [first, ...rest] = rows;
+  rest.sort((a, b) => (a.startedAt ?? '').localeCompare(b.startedAt ?? ''));
+  return [first!, ...rest];
 }
 
 export function lineageSummary(db: Database.Database): LineageSummary {

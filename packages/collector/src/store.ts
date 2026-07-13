@@ -26,6 +26,9 @@ export class FleetStore {
         PRIMARY KEY (agent_fingerprint, tag)
       )`);
     } catch { /* already migrated */ }
+    // data-sharing metrics on spawn edges: what the parent sent down / the child returned up
+    try { this.db.exec(`ALTER TABLE spawns ADD COLUMN prompt_chars INTEGER`); } catch { /* already migrated */ }
+    try { this.db.exec(`ALTER TABLE spawns ADD COLUMN result_chars INTEGER`); } catch { /* already migrated */ }
   }
 
   upsertMachine(m: Machine): void {
@@ -90,10 +93,14 @@ export class FleetStore {
   insertSpawn(s: Spawn): void {
     this.db
       .prepare(
-        `INSERT OR IGNORE INTO spawns (parent_run_id, child_run_id, confidence)
-         VALUES (@parentRunId, @childRunId, @confidence)`,
+        `INSERT INTO spawns (parent_run_id, child_run_id, confidence, prompt_chars, result_chars)
+         VALUES (@parentRunId, @childRunId, @confidence, @promptChars, @resultChars)
+         ON CONFLICT(parent_run_id, child_run_id) DO UPDATE SET
+           -- rescans backfill payload metrics onto legacy edges; never erase with NULL
+           prompt_chars = COALESCE(excluded.prompt_chars, spawns.prompt_chars),
+           result_chars = COALESCE(excluded.result_chars, spawns.result_chars)`,
       )
-      .run(s);
+      .run({ ...s, promptChars: s.promptChars ?? null, resultChars: s.resultChars ?? null });
   }
 
   close(): void {
