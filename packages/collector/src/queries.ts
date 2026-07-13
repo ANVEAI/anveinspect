@@ -67,6 +67,18 @@ export function openDb(dbPath = DEFAULT_DB, readonly = true): Database.Database 
   }
 }
 
+/** Write-mode open with the SAME friendly missing-db guidance (raw SQLite
+ *  "cannot open database" errors are useless to a new user). */
+export function openDbRw(dbPath = DEFAULT_DB): Database.Database {
+  try {
+    return new Database(dbPath, { fileMustExist: true });
+  } catch {
+    throw new Error(
+      `No fleet database at ${dbPath}. Run "anveinspect scan" first (or set ANVEINSPECT_DB to point at one).`,
+    );
+  }
+}
+
 export function listAgents(db: Database.Database, opts: { includeSubagents?: boolean } = {}): AgentRow[] {
   const machines = new Map(
     (db.prepare(`SELECT id, label FROM machines`).all() as any[]).map((m) => [m.id, m.label]),
@@ -178,7 +190,7 @@ export function declareCadence(
   origin: 'file' | 'ui' = 'ui',
 ): Cadence {
   parseExpect(expect); // validate before touching the db — throws with supported grammar
-  const db = new Database(dbPath);
+  const db = openDbRw(dbPath);
   try {
     const agent = db
       .prepare(`SELECT fingerprint FROM agents WHERE display_name = ? OR fingerprint = ? ORDER BY last_run_at DESC LIMIT 1`)
@@ -208,7 +220,7 @@ export function declareCadence(
 
 /** Evaluate all declared cadences + token spikes; persist NEW alerts; return open ones. */
 export function runCheck(dbPath: string, now = new Date()): { newAlerts: Alert[]; openAlerts: any[] } {
-  const db = new Database(dbPath);
+  const db = openDbRw(dbPath);
   try {
     const cadences = db.prepare(`SELECT * FROM cadences WHERE declared = 1`).all() as any[];
     const newAlerts: Alert[] = [];
@@ -274,7 +286,7 @@ export function runCheck(dbPath: string, now = new Date()): { newAlerts: Alert[]
 }
 
 export function ackAlert(dbPath: string, alertId: string): boolean {
-  const db = new Database(dbPath);
+  const db = openDbRw(dbPath);
   try {
     const res = db
       .prepare(`UPDATE alerts SET acked_at = datetime('now') WHERE id = ? AND acked_at IS NULL`)

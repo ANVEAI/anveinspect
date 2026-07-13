@@ -55,9 +55,10 @@ function main() {
   };
 
   try {
-    const spoolDir = join(homedir(), '.anveinspect', 'spool');
-    mkdirSync(spoolDir, { recursive: true });
-    appendFileSync(join(spoolDir, 'events.jsonl'), JSON.stringify(event) + '\n');
+    // ANVEINSPECT_SPOOL overrides (consistent with ANVEINSPECT_DB; also makes hooks testable)
+    const spoolFile = process.env.ANVEINSPECT_SPOOL ?? join(homedir(), '.anveinspect', 'spool', 'events.jsonl');
+    mkdirSync(join(spoolFile, '..'), { recursive: true });
+    appendFileSync(spoolFile, JSON.stringify(event) + '\n');
   } catch { /* spool failure must never break the agent */ }
 }
 

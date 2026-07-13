@@ -7,6 +7,17 @@ import Database from 'better-sqlite3';
  * organize and annotate the fleet, don't mutate remote systems.
  */
 
+/** Write-mode open with friendly missing-db guidance (kept local — queries.ts imports this module). */
+function openTagsDb(dbPath: string): Database.Database {
+  try {
+    return new Database(dbPath, { fileMustExist: true });
+  } catch {
+    throw new Error(
+      `No fleet database at ${dbPath}. Run "anveinspect scan" first (or set ANVEINSPECT_DB to point at one).`,
+    );
+  }
+}
+
 const TAGS_DDL = `CREATE TABLE IF NOT EXISTS agent_tags (
   agent_fingerprint TEXT NOT NULL,
   tag TEXT NOT NULL,
@@ -30,7 +41,7 @@ function resolveFingerprint(db: Database.Database, nameOrFp: string): string {
 export function addTag(dbPath: string, agentNameOrFp: string, tag: string): { agent: string; tag: string } {
   const clean = tag.trim().toLowerCase().replace(/\s+/g, '-');
   if (!clean) throw new Error('tag cannot be empty');
-  const db = new Database(dbPath);
+  const db = openTagsDb(dbPath);
   try {
     ensureTagsTable(db);
     const fp = resolveFingerprint(db, agentNameOrFp);
@@ -42,7 +53,7 @@ export function addTag(dbPath: string, agentNameOrFp: string, tag: string): { ag
 }
 
 export function removeTag(dbPath: string, agentNameOrFp: string, tag: string): boolean {
-  const db = new Database(dbPath);
+  const db = openTagsDb(dbPath);
   try {
     ensureTagsTable(db);
     const fp = resolveFingerprint(db, agentNameOrFp);

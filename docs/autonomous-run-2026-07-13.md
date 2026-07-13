@@ -164,3 +164,25 @@ Tested every surface like a new user. 4 real bugs found and FIXED, all with regr
   honest "needs a Workers Scripts:Read token" hint (+deterministic regression).
 - Hygiene: real fleet DB untouched (0 leftover tags/cadences); QA ran on an
   isolated scratchpad DB. 86 tests green (+2), typecheck clean.
+
+### Cycle 11 (deep end-to-end sweep) — DONE (user-requested)
+Surfaces not covered by Cycle 10, tested for real. 2 more bugs fixed:
+- E2E-A zero-history user: CLI 7/7 + all dashboard endpoints 200 on an EMPTY db;
+  missing-db guidance is friendly. BUG 5: check/tag/cadence/ack (write paths)
+  leaked raw SQLite "cannot open database" -> added openDbRw/openTagsDb with the
+  same actionable message everywhere.
+- E2E-B hooks pipeline: fleet-emit -> spool -> consumeSpool classification chain
+  proven (env override > CI > child-session > tty). BUG 6: fleet-emit hardcoded
+  the spool path (untestable + inconsistent with ANVEINSPECT_DB) -> now honors
+  ANVEINSPECT_SPOOL. Cleaned the one stray QA event from the real spool.
+- E2E-C alerting vs a REAL local webhook: declare cadence -> check detects missed
+  window (12h overdue, correct math) -> deliver posts 4 Block Kit payloads ->
+  re-deliver sends 0 (exactly-once). PASS.
+- E2E-D tick: scan+check+deliver in one command; dedup holds across commands. The
+  REAL launchd standing watch is loaded + healthy (exit 0, 15-min ticks). PASS.
+- E2E-F packaging: bin entrypoint runs (anveinspect.mjs -> status works), npm run
+  build passes, CI workflow (typecheck+tests+MCP handshake) well-formed. PASS.
+- E2E-G concurrency: 728 dashboard reads during a live scan, 0 failures (WAL). PASS.
+- Setup note for founder (not a bug): the real ~/.anveinspect/notify.json has no
+  slackWebhookUrl yet, so the standing watch pages nobody. One line to fix.
+86 tests green, typecheck clean, real DB/spool left clean.
