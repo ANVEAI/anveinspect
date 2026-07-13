@@ -283,3 +283,17 @@ Made the repo a professional open-source project + tested real user journeys.
   left a stale index.lock; cleared it and committed with explicit paths +
   GIT_OPTIONAL_LOCKS. Bulk `git add -A` hangs on the untracked video trees — use
   explicit paths.
+
+### Cycle 16 (Linux portability + consistency + math/DST goldens) — DONE (user-requested)
+- BUG 11 (fixed): `schedule install` wrote a macOS plist on every OS — Linux users
+  got a silently-dead watchdog. Now non-darwin prints a ready-to-paste cron line;
+  macOS still writes the plist. +e2e regression (process.platform=linux).
+- Cross-surface consistency test: one seeded db driven through CLI --json + dashboard
+  HTTP + MCP fleet_status, asserting identical pulse field-by-field ("identical
+  numbers everywhere" now enforced, not spot-checked). Calibrated: stale = ageDays>7
+  AND run_count>3 (intentional — don't nag barely-used agents).
+- Cost math goldens: cache-read/creation priced by own rates (sonnet all-classes
+  $22.05) + input×0.1/×1.25 fallback; DST fall-back wall-clock test.
+- Portability audit: osascript desktop notify gated on darwin (skips on Linux);
+  core scanner/queries/dashboard/MCP have no macOS-only assumptions.
+- 108 tests green (+5). Commit after this doc.
