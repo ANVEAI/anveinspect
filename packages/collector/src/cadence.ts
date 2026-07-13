@@ -34,7 +34,15 @@ export function parseExpect(expect: string): ParsedExpect {
   m = s.match(/^weekly (sun|mon|tue|wed|thu|fri|sat) (\d{1,2}):(\d{2})$/);
   if (m) return { kind: 'weekly', dow: DOW.indexOf(m[1]!), hour: clampHour(m[2]!), minute: clampMin(m[3]!) };
   m = s.match(/^every (\d+)h$/);
-  if (m) return { kind: 'every', intervalMs: Number(m[1]) * 3_600_000 };
+  if (m) {
+    const hours = Number(m[1]);
+    // 1h..8760h (one year). "every 0h" would be a watchdog that can NEVER report
+    // overdue (a silent-failure trap); a huge value overflows date math to NaN.
+    if (hours < 1 || hours > 8760) {
+      throw new Error(`interval out of range: "every ${m[1]}h" — use 1h to 8760h (one year).`);
+    }
+    return { kind: 'every', intervalMs: hours * 3_600_000 };
+  }
   throw new Error(
     `Unparseable cadence "${expect}". Supported: "daily HH:MM", "weekdays HH:MM", "weekly mon HH:MM", "every Nh".`,
   );

@@ -469,6 +469,15 @@ try {
       throw new Error(`unknown command: ${cmd} (available: doctor, setup, dash, scan, status, agents, agent, lineage, costs, tag, check, cadence, ack, connectors, tick, notify, schedule, report, insights)`);
   }
 } catch (err) {
-  console.error(`anveinspect: ${err instanceof Error ? err.message : String(err)}`);
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`anveinspect: ${msg}`);
+  // A corrupt/empty db file is unrecoverable in place — tell the user how to rebuild
+  // instead of leaving them with a raw SQLite message.
+  if (/not a database|disk image is malformed|no such table|file is encrypted|database corruption/i.test(msg)) {
+    console.error(
+      `\nThe fleet database looks corrupt or incomplete. It's a rebuildable cache — remove it and re-scan:\n` +
+        `  rm "${DEFAULT_DB}" && anveinspect scan`,
+    );
+  }
   process.exit(1);
 }

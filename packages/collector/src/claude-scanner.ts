@@ -138,6 +138,11 @@ export function scanClaudeProjects(root = join(homedir(), '.claude', 'projects')
   return result.finish();
 }
 
+/** A usage field coerced to a non-negative integer: null/NaN/negative/non-number → 0. */
+function nonNegTokens(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : 0;
+}
+
 function collectAgentFiles(dir: string, parentSessionId: string, projectDir: string, result: ScanResultBuilder): void {
   let files: string[];
   try {
@@ -334,10 +339,12 @@ function ingestLine(obj: any, acc: SessionAcc, seenUsage: Set<string>): void {
       if (!isDuplicate) {
         acc.tokensSeen = true;
         const t = (acc.tokens[model] ??= { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 });
-        t.input += usage.input_tokens ?? 0;
-        t.output += usage.output_tokens ?? 0;
-        t.cacheCreation += usage.cache_creation_input_tokens ?? 0;
-        t.cacheRead += usage.cache_read_input_tokens ?? 0;
+        // clamp: a token count is never negative or NaN. A corrupt/tampered transcript
+        // with negative usage would otherwise poison cost + token-spike math downstream.
+        t.input += nonNegTokens(usage.input_tokens);
+        t.output += nonNegTokens(usage.output_tokens);
+        t.cacheCreation += nonNegTokens(usage.cache_creation_input_tokens);
+        t.cacheRead += nonNegTokens(usage.cache_read_input_tokens);
       }
     }
     const content = obj.message.content;

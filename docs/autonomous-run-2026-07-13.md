@@ -242,3 +242,24 @@ Surfaces not covered by Cycle 10, tested for real. 2 more bugs fixed:
   into the alert, log-texture backdrop.
 - Gate: 2 SFMono lint stragglers fixed; lint/validate/inspect 0 errors; 4
   transitions verified; contact sheet reviewed. Project: videos/anveinspect-promo-v2.
+
+### Cycle 14 (scale + fuzz + corruption + load) — DONE (user-requested)
+Adversarial test round beyond functional QA. 3 real bugs found + fixed w/ regressions:
+- SCALE: synthetic 10k agents / 100k runs / 60k spawns. Every shared hot query
+  under budget: listAgents 212ms, fleetStatus 208ms, analytics 245ms, insights
+  305ms, agentGraph 111ms (correctly capped 150 edges, truncated=true), lineage
+  30-91ms, timeline/activity/health single-digit ms. All < 3s.
+- FUZZ (scanner): garbage/truncated/binary JSONL, null shapes, 200-deep nesting,
+  2MB fields, unicode names, corrupt subagent meta.json — scanner never threw,
+  kept the one valid session. BUG 7: negative/NaN token counts recorded verbatim
+  (would poison cost + spike math) -> nonNegTokens() clamps at ingestion.
+- FUZZ (cadence grammar): 18 malformed inputs. BUG 8: "every 0h" parsed to a
+  zero interval = a declared watchdog that can NEVER report overdue (silent-failure
+  trap); BUG 9: "every 99999999999h" overflowed date math to Invalid Date. Both
+  now bounded to 1h..8760h with an actionable error.
+- CORRUPT DB: garbage bytes / truncated / empty db files all give clean non-zero
+  errors (no stack traces). Polished: corruption keywords now append a "rm + rescan"
+  recovery hint (it's a rebuildable cache).
+- LOAD: 5000 requests across 5 endpoints, 0 failures; RSS 85MB->54MB after GC
+  (no leak); 0 leaked fleet.db handles (withDb holds under sustained load).
+- 100 tests green (+3), typecheck clean. Real fleet DB untouched (scratchpad DBs).

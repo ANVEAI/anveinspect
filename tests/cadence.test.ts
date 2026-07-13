@@ -26,6 +26,15 @@ describe('parseExpect', () => {
     expect(() => parseExpect('sometimes')).toThrow(/Supported/);
     expect(() => parseExpect('daily 25:00')).toThrow(/hour/);
   });
+  it('rejects an out-of-range interval (fuzz: "every 0h" = a watchdog that never fires)', () => {
+    // "every 0h" would return an interval of 0 -> lastExpectedFire == now -> never overdue
+    expect(() => parseExpect('every 0h')).toThrow(/out of range/);
+    // a huge value overflows date math to an Invalid Date downstream
+    expect(() => parseExpect('every 99999999999h')).toThrow(/out of range/);
+    // the boundaries stay valid
+    expect(parseExpect('every 1h').intervalMs).toBe(3_600_000);
+    expect(parseExpect('every 8760h').intervalMs).toBe(8760 * 3_600_000);
+  });
 });
 
 describe('lastExpectedFire', () => {
