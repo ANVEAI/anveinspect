@@ -228,3 +228,17 @@ Surfaces not covered by Cycle 10, tested for real. 2 more bugs fixed:
   Lint/validate/inspect 0 errors; contact sheets eyeballed before render.
 - Higgsfield note: its audio tool is speech-only (music model locked to the game
   pipeline), so BGM came from local MusicGen instead.
+
+### Cycle 13 (promo v2 — motion-graphics upgrade) — DONE (user-requested)
+- v1 copied to ~/Desktop/anveinspect-promo.mp4; v2 rendered + delivered to
+  ~/Desktop/anveinspect-promo-v2.mp4 (61s, 1920x1080, h264+aac, 42MB).
+- v2 upgrades: binding chrome system (section kickers + frame numbers + a top-edge
+  progress rail filling 1/9 per frame), layered ground system everywhere (dot-grid
+  + drifting glow + vignette + film grain), NATIVE animated SVG lineage graph for
+  the hero (hub blooms, 12 weighted satellites spring in, edges draw, 1,061x
+  counts up; real screenshot crossfades in as proof), ghost "1,512" backdrop
+  numeral, connector-lattice overload in the problem frame, floor reflection under
+  the docked UI, stat cards w/ synced bar-fills, 80% progress ring, EKG flatline
+  into the alert, log-texture backdrop.
+- Gate: 2 SFMono lint stragglers fixed; lint/validate/inspect 0 errors; 4
+  transitions verified; contact sheet reviewed. Project: videos/anveinspect-promo-v2.

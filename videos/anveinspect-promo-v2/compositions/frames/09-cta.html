@@ -1,0 +1,419 @@
+<template>
+  <div id="root" data-composition-id="09-cta" data-duration="6" data-width="1920" data-height="1080">
+    <style>
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      }
+      #root * { box-sizing: border-box; }
+
+      /* ---------- GROUND SYSTEM (clip layer, track 0) ---------- */
+      .cta9-ground { position: absolute; inset: 0; }
+      .cta9-base { position: absolute; inset: 0; background: #0a0d12; }
+      .cta9-dotgrid {
+        position: absolute; inset: 0;
+        background-image: radial-gradient(circle, rgba(238, 242, 247, 0.06) 1px, transparent 1px);
+        background-size: 24px 24px;
+        background-position: 12px 12px;
+      }
+      .cta9-glow {
+        position: absolute;
+        left: 460px; top: 140px;
+        width: 1100px; height: 900px;
+        background: radial-gradient(ellipse at center, rgba(62, 207, 142, 0.055) 0%, rgba(62, 207, 142, 0.0) 62%);
+      }
+      .cta9-vignette {
+        position: absolute; inset: 0;
+        background: radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.42) 100%);
+      }
+
+      /* ---------- CONTENT (clip layer, track 1) ---------- */
+      .cta9-content { position: absolute; inset: 0; }
+
+      /* wordmark + pulse dot, parked above the terminal */
+      .cta9-mark {
+        position: absolute;
+        left: 0; top: 176px;
+        width: 1920px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+      }
+      .cta9-dot {
+        width: 16px; height: 16px;
+        border-radius: 50%;
+        background: #3ecf8e;
+        box-shadow: 0 0 18px rgba(62, 207, 142, 0.55);
+      }
+      .cta9-markword {
+        font-size: 46px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        color: #eef2f7;
+        text-transform: lowercase;
+        line-height: 1;
+      }
+
+      /* terminal card — rebuilt clean, the one sanctioned rounded chrome */
+      .cta9-card {
+        position: absolute;
+        left: 510px; top: 306px;
+        width: 900px; height: 312px;
+        background: #10151d;
+        border: 1px solid rgba(238, 242, 247, 0.12);
+        border-radius: 12px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+      }
+      .cta9-titlebar {
+        position: absolute;
+        left: 0; top: 0; right: 0;
+        height: 52px;
+        border-bottom: 1px solid rgba(238, 242, 247, 0.08);
+        display: flex;
+        align-items: center;
+        padding: 0 22px;
+        gap: 10px;
+      }
+      .cta9-windot { width: 13px; height: 13px; border-radius: 50%; background: rgba(238, 242, 247, 0.16); }
+      .cta9-titletag {
+        margin-left: auto;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 15px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(238, 242, 247, 0.32);
+      }
+      .cta9-cardbody {
+        position: absolute;
+        left: 0; top: 52px; right: 0; bottom: 0;
+        padding: 44px 48px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+      }
+      .cta9-cmdline {
+        display: flex;
+        align-items: baseline;
+        white-space: pre;
+        font-size: 35px;
+        font-weight: 500;
+        line-height: 1;
+        color: #eef2f7;
+      }
+      .cta9-prompt { color: #3ecf8e; }
+      .cta9-cmdtext { color: #eef2f7; white-space: pre; }
+      .cta9-caret {
+        display: inline-block;
+        width: 19px; height: 38px;
+        background: #3ecf8e;
+        margin-left: 5px;
+        vertical-align: -6px;
+      }
+      .cta9-resp {
+        margin-top: 42px;
+        font-size: 29px;
+        line-height: 1;
+        white-space: pre;
+        color: rgba(238, 242, 247, 0.72);
+      }
+      .cta9-resp-check { color: #3ecf8e; }
+
+      /* corner ticks on the card */
+      .cta9-tick { position: absolute; width: 18px; height: 18px; }
+      .cta9-tick span { position: absolute; background: rgba(62, 207, 142, 0.65); }
+      .cta9-tick .cta9-th { width: 18px; height: 2px; }
+      .cta9-tick .cta9-tv { width: 2px; height: 18px; }
+      #cta9-tick-tl { left: 496px; top: 292px; }
+      #cta9-tick-tl .cta9-th { left: 0; top: 0; }
+      #cta9-tick-tl .cta9-tv { left: 0; top: 0; }
+      #cta9-tick-tr { left: 1406px; top: 292px; }
+      #cta9-tick-tr .cta9-th { right: 0; top: 0; }
+      #cta9-tick-tr .cta9-tv { right: 0; top: 0; }
+      #cta9-tick-bl { left: 496px; top: 608px; }
+      #cta9-tick-bl .cta9-th { left: 0; bottom: 0; }
+      #cta9-tick-bl .cta9-tv { left: 0; bottom: 0; }
+      #cta9-tick-br { left: 1406px; top: 608px; }
+      #cta9-tick-br .cta9-th { right: 0; bottom: 0; }
+      #cta9-tick-br .cta9-tv { right: 0; bottom: 0; }
+
+      /* return-flash border overlay (opacity-pulsed, never border-color tweened) */
+      .cta9-flash {
+        position: absolute;
+        left: 510px; top: 306px;
+        width: 900px; height: 312px;
+        border: 1px solid #3ecf8e;
+        border-radius: 12px;
+        box-shadow: 0 0 34px rgba(62, 207, 142, 0.35), inset 0 0 22px rgba(62, 207, 142, 0.12);
+        pointer-events: none;
+      }
+
+      /* payoff display line */
+      .cta9-payoff {
+        position: absolute;
+        left: 0; top: 706px;
+        width: 1920px;
+        text-align: center;
+        font-size: 104px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        text-transform: lowercase;
+        color: #eef2f7;
+        white-space: nowrap;
+      }
+      .cta9-word { display: inline-block; margin: 0 0.115em; }
+      .cta9-word-accent { color: #3ecf8e; }
+
+      /* ---------- CHROME SYSTEM (clip layer, track 2) ---------- */
+      .cta9-chrome { position: absolute; inset: 0; pointer-events: none; }
+      .cta9-railtrack {
+        position: absolute;
+        left: 0; top: 0;
+        width: 1920px; height: 2px;
+        background: rgba(238, 242, 247, 0.08);
+      }
+      .cta9-railfill {
+        position: absolute;
+        left: 0; top: 0;
+        width: 1920px; height: 2px;
+        background: #3ecf8e;
+        transform-origin: left center;
+      }
+      .cta9-railflash {
+        position: absolute;
+        left: 0; top: 0;
+        width: 1920px; height: 2px;
+        background: #6df0b4;
+        box-shadow: 0 0 16px rgba(62, 207, 142, 0.9), 0 3px 22px rgba(62, 207, 142, 0.5);
+      }
+      .cta9-kicker {
+        position: absolute;
+        left: 40px; top: 24px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 17px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(238, 242, 247, 0.45);
+        line-height: 1;
+      }
+      .cta9-kicker b { color: rgba(62, 207, 142, 0.7); font-weight: 500; }
+      .cta9-num {
+        position: absolute;
+        right: 40px; top: 24px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 17px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        color: rgba(238, 242, 247, 0.4);
+        line-height: 1;
+      }
+
+      /* ---------- GRAIN (clip layer, track 3, static) ---------- */
+      .cta9-grain { position: absolute; inset: 0; pointer-events: none; }
+      .cta9-grain svg { display: block; width: 1920px; height: 1080px; }
+
+      /* ---------- FADE TO BLACK (clip layer, track 4) ---------- */
+      .cta9-fadeblack { position: absolute; inset: 0; background: #000; pointer-events: none; }
+    </style>
+
+    <!-- GROUND -->
+    <div class="clip cta9-ground" id="cta9-ground" data-start="0" data-duration="6" data-track-index="0">
+      <div class="cta9-base" id="cta9-base"></div>
+      <div class="cta9-dotgrid" id="cta9-dotgrid"></div>
+      <div class="cta9-glow" id="cta9-glow"></div>
+      <div class="cta9-vignette" id="cta9-vignette"></div>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="clip cta9-content" id="cta9-content" data-start="0" data-duration="6" data-track-index="1">
+      <div class="cta9-mark" id="cta9-mark">
+        <div class="cta9-dot" id="cta9-dot"></div>
+        <div class="cta9-markword" id="cta9-markword">anveinspect</div>
+      </div>
+
+      <div class="cta9-card" id="cta9-card">
+        <div class="cta9-titlebar" id="cta9-titlebar">
+          <div class="cta9-windot" id="cta9-windot-1"></div>
+          <div class="cta9-windot" id="cta9-windot-2"></div>
+          <div class="cta9-windot" id="cta9-windot-3"></div>
+          <div class="cta9-titletag" id="cta9-titletag">terminal</div>
+        </div>
+        <div class="cta9-cardbody" id="cta9-cardbody">
+          <div class="cta9-cmdline" id="cta9-cmdline"><span class="cta9-prompt" id="cta9-prompt">$ </span><span class="cta9-cmdtext" id="cta9-cmdtext"></span><span class="cta9-caret" id="cta9-caret"></span></div>
+          <div class="cta9-resp" id="cta9-resp"><span class="cta9-resp-check" id="cta9-resp-check">&#10003;</span> 146 agents &middot; 4 platforms &middot; fleet ready</div>
+        </div>
+      </div>
+
+      <div class="cta9-tick" id="cta9-tick-tl"><span class="cta9-th"></span><span class="cta9-tv"></span></div>
+      <div class="cta9-tick" id="cta9-tick-tr"><span class="cta9-th"></span><span class="cta9-tv"></span></div>
+      <div class="cta9-tick" id="cta9-tick-bl"><span class="cta9-th"></span><span class="cta9-tv"></span></div>
+      <div class="cta9-tick" id="cta9-tick-br"><span class="cta9-th"></span><span class="cta9-tv"></span></div>
+
+      <div class="cta9-flash" id="cta9-flash"></div>
+
+      <div class="cta9-payoff" id="cta9-payoff"><span class="cta9-word" id="cta9-w1">see</span><span class="cta9-word cta9-word-accent" id="cta9-w2">every</span><span class="cta9-word cta9-word-accent" id="cta9-w3">agent</span><span class="cta9-word" id="cta9-w4">you</span><span class="cta9-word" id="cta9-w5">run.</span></div>
+    </div>
+
+    <!-- CHROME -->
+    <div class="clip cta9-chrome" id="cta9-chrome" data-start="0" data-duration="6" data-track-index="2">
+      <div class="cta9-railtrack" id="cta9-railtrack"></div>
+      <div class="cta9-railfill" id="cta9-railfill"></div>
+      <div class="cta9-railflash" id="cta9-railflash"></div>
+      <div class="cta9-kicker" id="cta9-kicker"><b>/</b> 09 &mdash; ONE COMMAND</div>
+      <div class="cta9-num" id="cta9-num">09</div>
+    </div>
+
+    <!-- GRAIN (static film grain above content) -->
+    <div class="clip cta9-grain" id="cta9-grain" data-start="0" data-duration="6" data-track-index="3">
+      <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080">
+        <filter id="cta9-grainfilter">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" seed="7"></feTurbulence>
+          <feColorMatrix type="saturate" values="0"></feColorMatrix>
+        </filter>
+        <rect width="1920" height="1080" filter="url(#cta9-grainfilter)" opacity="0.045"></rect>
+      </svg>
+    </div>
+
+    <!-- FINAL FADE (the film's one sanctioned exit) -->
+    <div class="clip cta9-fadeblack" id="cta9-fadeblack" data-start="0" data-duration="6" data-track-index="4"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      (function () {
+        window.__timelines = window.__timelines || {};
+        var D = 6;
+        var tl = gsap.timeline({ paused: true });
+
+        /* ============ CHROME — progress rail 8/9 -> 9/9, flash on completion ~5.5s ============ */
+        tl.fromTo("#cta9-railfill", { scaleX: 8 / 9 }, { scaleX: 1, duration: 5.45, ease: "power1.inOut" }, 0);
+        tl.fromTo("#cta9-railflash", { opacity: 0 }, { opacity: 1, duration: 0.08, ease: "power2.out" }, 5.45);
+        tl.to("#cta9-railflash", { opacity: 0, duration: 0.34, ease: "power2.in" }, 5.56);
+
+        /* kicker mask-wipe in during the first second (dim chrome, top 60px) */
+        tl.fromTo(
+          "#cta9-kicker",
+          { clipPath: "inset(0 100% 0 0)" },
+          { clipPath: "inset(0 0% 0 0)", duration: 0.6, ease: "power2.out" },
+          0.15
+        );
+        tl.fromTo("#cta9-num", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 0.35);
+
+        /* ============ SCENE 1 (0.0–1.0s) — terminal card fades up, wordmark parks above ============ */
+        tl.fromTo(
+          "#cta9-card",
+          { opacity: 0, y: 46, scale: 0.985, filter: "blur(10px)" },
+          { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.85, ease: "power3.out" },
+          0.08
+        );
+        tl.fromTo(
+          "#cta9-mark",
+          { opacity: 0, y: -26, filter: "blur(8px)" },
+          { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.7, ease: "power3.out" },
+          0.28
+        );
+        tl.fromTo(
+          "#cta9-dot",
+          { scale: 0, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.2)" },
+          0.62
+        );
+        /* slow finite pulse on the brand dot (deterministic, finite repeats) */
+        tl.to("#cta9-dot", { scale: 1.18, duration: 0.55, ease: "sine.inOut", yoyo: true, repeat: 7 }, 1.2);
+        /* corner ticks draw in staggered */
+        tl.fromTo(
+          ["#cta9-tick-tl", "#cta9-tick-tr", "#cta9-tick-bl", "#cta9-tick-br"],
+          { opacity: 0 },
+          { opacity: 0.75, duration: 0.3, stagger: 0.07, ease: "power1.out" },
+          0.55
+        );
+
+        /* ============ SCENE 2 (1.0–3.5s) — typewriter, deterministic jitter + word pauses ============ */
+        /* Hand-authored keystroke sequence — discrete-text-sequence rule. No Math.random. */
+        var SEQ = [
+          { t: 0.0, text: "" },
+          { t: 1.08, text: "n" },
+          { t: 1.16, text: "np" },
+          { t: 1.27, text: "npx" },
+          { t: 1.55, text: "npx " },
+          { t: 1.63, text: "npx a" },
+          { t: 1.71, text: "npx an" },
+          { t: 1.82, text: "npx anv" },
+          { t: 1.9, text: "npx anve" },
+          { t: 1.97, text: "npx anvei" },
+          { t: 2.07, text: "npx anvein" },
+          { t: 2.15, text: "npx anveins" },
+          { t: 2.24, text: "npx anveinsp" },
+          { t: 2.31, text: "npx anveinspe" },
+          { t: 2.42, text: "npx anveinspec" },
+          { t: 2.5, text: "npx anveinspect" },
+          { t: 2.78, text: "npx anveinspect " },
+          { t: 2.86, text: "npx anveinspect d" },
+          { t: 2.95, text: "npx anveinspect do" },
+          { t: 3.03, text: "npx anveinspect doc" },
+          { t: 3.14, text: "npx anveinspect doct" },
+          { t: 3.22, text: "npx anveinspect docto" },
+          { t: 3.32, text: "npx anveinspect doctor" }
+        ];
+
+        function entryAt(time) {
+          for (var i = SEQ.length - 1; i >= 0; i--) {
+            if (time >= SEQ[i].t) return SEQ[i];
+          }
+          return SEQ[0];
+        }
+
+        var cmdEl = document.getElementById("cta9-cmdtext");
+        var caretEl = document.getElementById("cta9-caret");
+
+        /* Stateless per-frame evaluation — fully seek-safe in both directions. */
+        var driver = { t: 0 };
+        tl.to(
+          driver,
+          {
+            t: D,
+            duration: D,
+            ease: "none",
+            onUpdate: function () {
+              var t = driver.t;
+              var entry = entryAt(t);
+              cmdEl.textContent = entry.text;
+              /* caret: solid within 0.3s of a keystroke (while typing), else sin blink (8 cycles / 6s) */
+              var isTyping = t >= 1.0 && t < 3.45 && t - entry.t < 0.3;
+              var blinkOn = Math.sin((t / 0.75) * Math.PI * 2) > 0;
+              caretEl.style.opacity = isTyping || blinkOn ? "1" : "0";
+            }
+          },
+          0
+        );
+
+        /* ============ SCENE 3 (3.5–4.5s) — return flash + instant response print ============ */
+        tl.fromTo("#cta9-flash", { opacity: 0 }, { opacity: 1, duration: 0.1, ease: "power2.out" }, 3.5);
+        tl.to("#cta9-flash", { opacity: 0, duration: 0.55, ease: "power2.in" }, 3.62);
+        tl.fromTo("#cta9-resp", { opacity: 0 }, { opacity: 1, duration: 0.06, ease: "none" }, 3.56);
+
+        /* ============ SCENE 4 (4.5–6.0s) — payoff line per-word (y+blur), then the settle ============ */
+        var words = ["#cta9-w1", "#cta9-w2", "#cta9-w3", "#cta9-w4", "#cta9-w5"];
+        var wordTimes = [4.5, 4.68, 4.86, 5.04, 5.2];
+        for (var w = 0; w < words.length; w++) {
+          tl.fromTo(
+            words[w],
+            { opacity: 0, y: 36, filter: "blur(10px)" },
+            { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, ease: "power3.out" },
+            wordTimes[w]
+          );
+        }
+
+        /* ground glow — one very slow drift across the whole frame */
+        tl.fromTo("#cta9-glow", { x: -60, scale: 1 }, { x: 50, scale: 1.07, duration: 6, ease: "sine.inOut" }, 0);
+
+        /* quiet fade-to-black settle — final frame, the film's one sanctioned exit */
+        tl.fromTo("#cta9-fadeblack", { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power2.in" }, 5.55);
+
+        window.__timelines["09-cta"] = tl;
+      })();
+    </script>
+  </div>
+</template>

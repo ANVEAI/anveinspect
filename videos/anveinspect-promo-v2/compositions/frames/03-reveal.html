@@ -1,0 +1,549 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Frame 3 — Reveal: AnveInspect. Everything the runtime needs lives inside <template>. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root — never a class on the composition root. */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        .clip {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* ── THE GROUND SYSTEM ─────────────────────────────────────── */
+        #rv3-base {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+        #rv3-dotgrid {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(rgba(238, 242, 247, 0.065) 1px, transparent 1.5px);
+          background-size: 24px 24px;
+        }
+        #rv3-glowfield {
+          position: absolute;
+          left: -10%;
+          top: -10%;
+          width: 120%;
+          height: 120%;
+          background: radial-gradient(
+            640px 500px at 66% 30%,
+            rgba(62, 207, 142, 0.055),
+            transparent 70%
+          );
+          will-change: transform;
+        }
+        #rv3-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            120% 92% at 50% 46%,
+            transparent 55%,
+            rgba(0, 0, 0, 0.5) 100%
+          );
+        }
+
+        /* ── CONTENT ───────────────────────────────────────────────── */
+        /* Wordmark lockup — perspective ancestor is static; GSAP owns the lockup transform. */
+        #rv3-lockup-pers {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 340px;
+          perspective: 1400px;
+        }
+        #rv3-lockup {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          transform-origin: 50% 0;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        #rv3-wordrow {
+          display: flex;
+          align-items: center;
+          gap: 30px;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        #rv3-dotwrap {
+          position: relative;
+          width: 30px;
+          height: 30px;
+        }
+        #rv3-dot {
+          position: absolute;
+          inset: 0;
+          background: #3ecf8e;
+          border-radius: 50%;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        #rv3-dotring {
+          position: absolute;
+          inset: -7px;
+          border: 2px solid rgba(62, 207, 142, 0.8);
+          border-radius: 50%;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, opacity;
+        }
+        #rv3-word {
+          display: flex;
+          transform-style: preserve-3d;
+        }
+        .rv3-ltr {
+          display: inline-block;
+          font-weight: 900;
+          font-size: 150px;
+          line-height: 1;
+          color: #eef2f7;
+          margin-right: -3px; /* -0.02em tracking without per-span letter-spacing tails */
+          transform-style: preserve-3d;
+          backface-visibility: hidden;
+          will-change: transform, opacity;
+        }
+        .rv3-ltr:last-child {
+          margin-right: 0;
+        }
+        #rv3-tagline {
+          margin-top: 34px;
+          width: 640px;
+          height: 44px;
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 30px;
+          letter-spacing: 0.02em;
+          color: rgba(238, 242, 247, 0.92);
+        }
+        #rv3-type {
+          white-space: pre;
+        }
+        #rv3-caret {
+          display: inline-block;
+          width: 17px;
+          height: 36px;
+          background: #3ecf8e;
+          margin-left: 6px;
+          opacity: 0;
+          will-change: opacity;
+        }
+
+        /* Dashboard dock — perspective wrapper static; GSAP owns the card group. */
+        #rv3-dockpers {
+          position: absolute;
+          inset: 0;
+          perspective: 1600px;
+          perspective-origin: 50% 38%;
+        }
+        #rv3-dockglow {
+          position: absolute;
+          left: 260px;
+          top: 208px;
+          width: 1400px;
+          height: 760px;
+          background: radial-gradient(
+            closest-side,
+            rgba(62, 207, 142, 0.3),
+            rgba(62, 207, 142, 0.1) 45%,
+            transparent 72%
+          );
+          opacity: 0;
+          transform-origin: 50% 50%;
+          pointer-events: none;
+          will-change: transform, opacity;
+        }
+        #rv3-cardgroup {
+          position: absolute;
+          left: 440px;
+          top: 296px;
+          width: 1040px;
+          height: 585px;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        #rv3-card {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1040px;
+          height: 585px;
+          box-sizing: border-box;
+          border: 1px solid rgba(238, 242, 247, 0.14);
+          background: #0d1117;
+        }
+        #rv3-cardimg {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        #rv3-tracesvg {
+          position: absolute;
+          inset: -1px;
+          width: 1040px;
+          height: 585px;
+          overflow: visible;
+          pointer-events: none;
+          filter: drop-shadow(0 0 7px rgba(62, 207, 142, 0.55));
+        }
+        #rv3-tracerect {
+          fill: none;
+          stroke: #3ecf8e;
+          stroke-width: 2;
+        }
+        /* Floor reflection: mirrored copy under the card, ~8%, gradient mask fade. */
+        #rv3-reflect {
+          position: absolute;
+          left: 0;
+          top: 589px;
+          width: 1040px;
+          height: 190px;
+          overflow: hidden;
+          opacity: 0.08;
+          -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 90%);
+          mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 90%);
+          pointer-events: none;
+        }
+        #rv3-reflimg {
+          display: block;
+          width: 1040px;
+          height: 585px;
+          transform: scaleY(-1); /* static CSS transform — never GSAP-animated */
+        }
+
+        /* ── THE CHROME SYSTEM (top 60px, dim) ─────────────────────── */
+        #rv3-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background: #3ecf8e;
+          opacity: 0.85;
+          transform-origin: 0 50%;
+          will-change: transform;
+        }
+        #rv3-kicker {
+          position: absolute;
+          top: 24px;
+          left: 48px;
+          overflow: hidden;
+        }
+        #rv3-kicker-inner {
+          display: inline-block;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-weight: 500;
+          font-size: 15px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(238, 242, 247, 0.48);
+          will-change: transform;
+        }
+        .rv3-acc {
+          color: rgba(62, 207, 142, 0.75);
+          font-style: normal;
+        }
+        #rv3-num {
+          position: absolute;
+          top: 24px;
+          right: 48px;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-weight: 500;
+          font-size: 15px;
+          letter-spacing: 0.14em;
+          font-variant-numeric: tabular-nums;
+          color: rgba(238, 242, 247, 0.3);
+        }
+
+        /* ── FILM GRAIN (static, above content) ────────────────────── */
+        #rv3-grainsvg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="03-reveal"
+        data-duration="7"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- Track 0 — ground (full-bleed base lives on a clip, never on #root) -->
+        <div id="rv3-ground" class="clip" data-start="0" data-duration="7" data-track-index="0">
+          <div id="rv3-base"></div>
+          <div id="rv3-dotgrid"></div>
+          <div id="rv3-glowfield"></div>
+          <div id="rv3-vignette"></div>
+        </div>
+
+        <!-- Track 1 — content -->
+        <div id="rv3-content" class="clip" data-start="0" data-duration="7" data-track-index="1">
+          <!-- Lockup: pulse-dot + scattered-letter wordmark + typed tagline -->
+          <div id="rv3-lockup-pers">
+            <div id="rv3-lockup">
+              <div id="rv3-wordrow">
+                <div id="rv3-dotwrap">
+                  <div id="rv3-dotring"></div>
+                  <div id="rv3-dot"></div>
+                </div>
+                <div id="rv3-word">
+                  <span class="rv3-ltr" id="rv3-l0">a</span
+                  ><span class="rv3-ltr" id="rv3-l1">n</span
+                  ><span class="rv3-ltr" id="rv3-l2">v</span
+                  ><span class="rv3-ltr" id="rv3-l3">e</span
+                  ><span class="rv3-ltr" id="rv3-l4">i</span
+                  ><span class="rv3-ltr" id="rv3-l5">n</span
+                  ><span class="rv3-ltr" id="rv3-l6">s</span
+                  ><span class="rv3-ltr" id="rv3-l7">p</span
+                  ><span class="rv3-ltr" id="rv3-l8">e</span
+                  ><span class="rv3-ltr" id="rv3-l9">c</span
+                  ><span class="rv3-ltr" id="rv3-l10">t</span>
+                </div>
+              </div>
+              <div id="rv3-tagline">
+                <span id="rv3-type"></span><span id="rv3-caret"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dock: glow / reflection / real UI card (depth layers) -->
+          <div id="rv3-dockpers">
+            <div id="rv3-dockglow"></div>
+            <div id="rv3-cardgroup">
+              <div id="rv3-reflect">
+                <img id="rv3-reflimg" src="assets/view-overview.png" alt="" />
+              </div>
+              <div id="rv3-card">
+                <img id="rv3-cardimg" src="assets/view-overview.png" alt="" />
+                <svg id="rv3-tracesvg" viewBox="0 0 1040 585" xmlns="http://www.w3.org/2000/svg">
+                  <rect id="rv3-tracerect" x="1" y="1" width="1038" height="583" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Track 2 — chrome -->
+        <div id="rv3-chrome" class="clip" data-start="0" data-duration="7" data-track-index="2">
+          <div id="rv3-rail"></div>
+          <div id="rv3-kicker">
+            <span id="rv3-kicker-inner"
+              ><span class="rv3-acc">/</span>&nbsp;03&nbsp;&mdash;&nbsp;THE CONTROL PLANE</span
+            >
+          </div>
+          <div id="rv3-num">03</div>
+        </div>
+
+        <!-- Track 3 — static film grain above content -->
+        <div id="rv3-grain" class="clip" data-start="0" data-duration="7" data-track-index="3">
+          <svg id="rv3-grainsvg" xmlns="http://www.w3.org/2000/svg">
+            <filter id="rv3-noise">
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.9"
+                numOctaves="2"
+                seed="7"
+                stitchTiles="stitch"
+              />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect width="100%" height="100%" filter="url(#rv3-noise)" opacity="0.05" />
+          </svg>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/TextPlugin.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        gsap.registerPlugin(TextPlugin);
+
+        var tl = gsap.timeline({ paused: true });
+
+        /* Music grid: 118bpm — beat 0.5085s, bar 2.034s. Scene windows are the cues. */
+
+        /* ── CHROME — rail loads 2/9 → 3/9 across the full 7s; kicker mask-wipes in ── */
+        tl.fromTo(
+          "#rv3-rail",
+          { scaleX: 2 / 9 },
+          { scaleX: 3 / 9, duration: 7, ease: "none" },
+          0
+        );
+        tl.fromTo(
+          "#rv3-kicker-inner",
+          { xPercent: -104 },
+          { xPercent: 0, duration: 0.7, ease: "power3.out" },
+          0.15
+        );
+        tl.fromTo(
+          "#rv3-num",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.5, ease: "power2.out" },
+          0.35
+        );
+
+        /* ── GROUND — one very slow glow-field drift under everything ── */
+        tl.fromTo(
+          "#rv3-glowfield",
+          { x: 0, y: 0 },
+          { x: -46, y: 26, duration: 7, ease: "none" },
+          0
+        );
+
+        /* ── SCENE 1 (0.0–1.5s) — letters fly in from a shallow 3D scatter and lock.
+              depth-scatter-assemble: every coordinate index-derived (golden angle),
+              fromTo so t=0 seeks land parked in the cloud. ── */
+        var letters = gsap.utils.toArray(".rv3-ltr");
+        var GOLDEN = Math.PI * (3 - Math.sqrt(5));
+        var RADIUS = 340;
+        var Z_NEAR = 260;
+        var Z_FAR = -300;
+        var TUMBLE = 55;
+        var N = letters.length;
+        letters.forEach(function (el, i) {
+          var a = i * GOLDEN;
+          var depthT = N > 1 ? i / (N - 1) : 0;
+          tl.fromTo(
+            el,
+            {
+              x: Math.cos(a) * RADIUS,
+              y: Math.sin(a) * RADIUS * 0.55,
+              z: Z_NEAR - depthT * (Z_NEAR - Z_FAR),
+              rotationX: Math.sin(a) * TUMBLE,
+              rotationY: Math.cos(a) * TUMBLE,
+              opacity: 0,
+            },
+            {
+              x: 0,
+              y: 0,
+              z: 0,
+              rotationX: 0,
+              rotationY: 0,
+              opacity: 1,
+              duration: 0.85,
+              ease: "power3.out",
+            },
+            0.1 + i * 0.055
+          );
+        });
+        /* Cloud spin settles to 0 so the lockup resolves flat. */
+        tl.fromTo(
+          "#rv3-wordrow",
+          { rotationY: -14 },
+          { rotationY: 0, duration: 1.6, ease: "power2.out" },
+          0
+        );
+
+        /* Pulse-dot blooms on the settle — the film's ONE sanctioned overshoot. */
+        tl.fromTo(
+          "#rv3-dot",
+          { scale: 0, opacity: 0 },
+          { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.8)" },
+          1.22
+        );
+        tl.fromTo(
+          "#rv3-dotring",
+          { scale: 0.4, opacity: 0.55 },
+          { scale: 2.4, opacity: 0, duration: 0.7, ease: "power2.out", immediateRender: false },
+          1.3
+        );
+
+        /* ── SCENE 2 (1.5–3.0s) — tagline types with a green block caret;
+              caret blinks twice, parks. TextPlugin is progress-based (seek-safe). ── */
+        tl.fromTo(
+          "#rv3-caret",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.05, ease: "none" },
+          1.5
+        );
+        tl.to(
+          "#rv3-type",
+          { text: { value: "every agent. one control plane." }, duration: 1.05, ease: "none" },
+          1.55
+        );
+        /* blink 1 */
+        tl.to("#rv3-caret", { opacity: 0, duration: 0.05, ease: "none" }, 2.85);
+        tl.to("#rv3-caret", { opacity: 1, duration: 0.05, ease: "none" }, 3.1);
+        /* blink 2, then park solid */
+        tl.to("#rv3-caret", { opacity: 0, duration: 0.05, ease: "none" }, 3.35);
+        tl.to("#rv3-caret", { opacity: 1, duration: 0.05, ease: "none" }, 3.6);
+
+        /* ── SCENE 3 (3.0–5.0s) — lockup yields the upper third; the REAL dashboard
+              rises from the bottom edge and docks at 7° rotationX. ── */
+        tl.fromTo(
+          "#rv3-lockup",
+          { scale: 1, y: 0 },
+          { scale: 0.55, y: -190, duration: 0.95, ease: "power3.inOut" },
+          3.05
+        );
+        tl.fromTo(
+          "#rv3-cardgroup",
+          { y: 810, rotationX: 14 },
+          { y: 0, rotationX: 7, duration: 1.45, ease: "power3.out" },
+          3.15
+        );
+
+        /* 1px accent border glow traces the card perimeter as it seats (svg-path-draw). */
+        var traceRect = document.getElementById("rv3-tracerect");
+        var traceLen = traceRect.getTotalLength();
+        traceRect.style.strokeDasharray = String(traceLen);
+        traceRect.style.strokeDashoffset = String(traceLen);
+        tl.to(
+          traceRect,
+          { strokeDashoffset: 0, duration: 0.9, ease: "power2.out" },
+          4.15
+        );
+
+        /* ── SCENE 4 (5.0–7.0s) — accent glow blooms behind the docked UI and settles;
+              held read, glow jitter only (bounded sine via phase proxy — no loop). ── */
+        tl.fromTo(
+          "#rv3-dockglow",
+          { opacity: 0, scale: 0.85 },
+          { opacity: 0.32, scale: 1, duration: 1.0, ease: "power2.out" },
+          5.09
+        );
+        var dockGlow = document.getElementById("rv3-dockglow");
+        var phase = { p: 0 };
+        tl.to(
+          phase,
+          {
+            p: Math.PI,
+            duration: 0.9,
+            ease: "none",
+            onUpdate: function () {
+              var s = Math.sin(phase.p);
+              dockGlow.style.opacity = String(0.32 + s * 0.03);
+              dockGlow.style.transform = "scale(" + (1 + s * 0.012) + ")";
+            },
+          },
+          6.09
+        );
+
+        window.__timelines["03-reveal"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

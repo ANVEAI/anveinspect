@@ -1,0 +1,432 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>01-hook — the question you can't answer</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============ root (styled via #root — never a class) ============ */
+        #root {
+          position: relative;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+
+        /* ============ GROUND SYSTEM (full-bleed clip, track 0) ============ */
+        .hk1-groundwrap {
+          position: absolute;
+          inset: 0;
+        }
+        .hk1-base {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+        .hk1-dots {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(
+            rgba(238, 242, 247, 0.06) 1px,
+            transparent 1px
+          );
+          background-size: 24px 24px;
+        }
+        .hk1-glow {
+          position: absolute;
+          left: 52%;
+          top: -18%;
+          width: 1500px;
+          height: 1500px;
+          background: radial-gradient(
+            circle at center,
+            rgba(62, 207, 142, 0.055) 0%,
+            rgba(62, 207, 142, 0.022) 38%,
+            rgba(62, 207, 142, 0) 66%
+          );
+        }
+        .hk1-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse at 50% 44%,
+            rgba(0, 0, 0, 0) 52%,
+            rgba(0, 0, 0, 0.42) 100%
+          );
+        }
+
+        /* ============ CONTENT (clip, track 1) ============ */
+        .hk1-contentwrap {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* the colossal ghost numeral — the depth layer, "wallpaper is the data" */
+        .hk1-ghost {
+          position: absolute;
+          right: -70px;
+          top: 148px;
+          font-size: 720px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.05em;
+          color: #eef2f7;
+          font-variant-numeric: tabular-nums;
+          white-space: nowrap;
+        }
+
+        /* line 1 — "your AI agents ran 1,512 times this month." */
+        .hk1-line1 {
+          position: absolute;
+          left: 106px;
+          top: 258px;
+          width: 1010px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          column-gap: 24px;
+          row-gap: 6px;
+          font-size: 66px;
+          font-weight: 600;
+          line-height: 1.22;
+          letter-spacing: -0.02em;
+          color: #eef2f7;
+        }
+        .hk1-w {
+          display: inline-block;
+          will-change: transform, filter, opacity;
+        }
+        .hk1-count {
+          font-family: ui-monospace, monospace;
+          font-weight: 600;
+          color: #3ecf8e;
+          font-variant-numeric: tabular-nums;
+          min-width: 208px;
+          white-space: nowrap;
+        }
+
+        /* the question row — stem holds, tail token hard-cut cycles (the focal) */
+        .hk1-qrow {
+          position: absolute;
+          left: 106px;
+          top: 462px;
+          display: flex;
+          align-items: baseline;
+          column-gap: 38px;
+          font-size: 148px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          color: #eef2f7;
+          text-transform: lowercase;
+          white-space: nowrap;
+        }
+        .hk1-stem {
+          display: inline-flex;
+          column-gap: 38px;
+        }
+        .hk1-sw {
+          display: inline-block;
+          will-change: transform, filter, opacity;
+        }
+        .hk1-token {
+          display: inline-block;
+          min-width: 540px;
+          color: #eef2f7;
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* ============ CHROME SYSTEM (clip, track 2 — lives in top 60px) ============ */
+        .hk1-chromewrap {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        .hk1-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 213.34px; /* 1/9 of 1920 — frame 1 of 9 */
+          height: 2px;
+        }
+        .hk1-railfill {
+          position: absolute;
+          inset: 0;
+          background: #3ecf8e;
+          opacity: 0.85;
+        }
+        .hk1-kicker {
+          position: absolute;
+          top: 24px;
+          left: 36px;
+          overflow: hidden; /* mask for the wipe */
+          font-family: ui-monospace, monospace;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          line-height: 1.2;
+        }
+        .hk1-kickerin {
+          display: inline-block;
+          color: rgba(238, 242, 247, 0.45);
+          will-change: transform;
+        }
+        .hk1-kickerin em {
+          font-style: normal;
+          color: rgba(62, 207, 142, 0.75);
+        }
+        .hk1-framenum {
+          position: absolute;
+          top: 24px;
+          right: 36px;
+          font-family: ui-monospace, monospace;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          color: rgba(238, 242, 247, 0.28);
+          line-height: 1.2;
+        }
+
+        /* ============ GRAIN (clip, track 3 — static feTurbulence, above content) ============ */
+        .hk1-grainwrap {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        .hk1-grainsvg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          opacity: 0.05;
+        }
+      </style>
+
+      <div id="root" data-composition-id="01-hook" data-duration="6" data-width="1920" data-height="1080">
+        <!-- GROUND SYSTEM — full-bleed clip on the lowest track (never on #root) -->
+        <div class="clip hk1-groundwrap" id="hook01-ground" data-start="0" data-duration="6" data-track-index="0">
+          <div class="hk1-base" id="hook01-base"></div>
+          <div class="hk1-dots" id="hook01-dots"></div>
+          <div class="hk1-glow" id="hook01-glow"></div>
+          <div class="hk1-vignette" id="hook01-vignette"></div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="clip hk1-contentwrap" id="hook01-content" data-start="0" data-duration="6" data-track-index="1">
+          <div class="hk1-ghost" id="hook01-ghost">1,512</div>
+
+          <div class="hk1-line1" id="hook01-line1">
+            <span class="hk1-w" id="hook01-w1">your</span>
+            <span class="hk1-w" id="hook01-w2">AI</span>
+            <span class="hk1-w" id="hook01-w3">agents</span>
+            <span class="hk1-w" id="hook01-w4">ran</span>
+            <span class="hk1-w hk1-count" id="hook01-num">0</span>
+            <span class="hk1-w" id="hook01-w6">times</span>
+            <span class="hk1-w" id="hook01-w7">this</span>
+            <span class="hk1-w" id="hook01-w8">month.</span>
+          </div>
+
+          <div class="hk1-qrow" id="hook01-qrow">
+            <span class="hk1-stem" id="hook01-stem">
+              <span class="hk1-sw" id="hook01-sw1">what</span>
+              <span class="hk1-sw" id="hook01-sw2">did</span>
+              <span class="hk1-sw" id="hook01-sw3">they</span>
+            </span>
+            <span class="hk1-token" id="hook01-token"></span>
+          </div>
+        </div>
+
+        <!-- CHROME SYSTEM -->
+        <div class="clip hk1-chromewrap" id="hook01-chrome" data-start="0" data-duration="6" data-track-index="2">
+          <div class="hk1-rail" id="hook01-rail">
+            <div class="hk1-railfill" id="hook01-railfill"></div>
+          </div>
+          <div class="hk1-kicker" id="hook01-kicker">
+            <span class="hk1-kickerin" id="hook01-kickerin"><em>/</em>&nbsp;01 — THE QUESTION</span>
+          </div>
+          <div class="hk1-framenum" id="hook01-framenum">01</div>
+        </div>
+
+        <!-- GRAIN — static feTurbulence film-grain tile above content -->
+        <div class="clip hk1-grainwrap" id="hook01-grain" data-start="0" data-duration="6" data-track-index="3">
+          <svg class="hk1-grainsvg" id="hook01-grainsvg" xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" preserveAspectRatio="none">
+            <filter id="hook01-noisefilter">
+              <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" seed="7"></feTurbulence>
+            </filter>
+            <rect id="hook01-grainrect" width="100%" height="100%" filter="url(#hook01-noisefilter)"></rect>
+          </svg>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+        <script>
+          window.__timelines = window.__timelines || {};
+          const tl = gsap.timeline({ paused: true });
+
+          /* 118bpm music grid — the reveal cues (silent film, windows ARE the cues) */
+          const BEAT = 0.5085;
+          const BAR = 2.034;
+          /* token swaps land on the beat grid, evenly spaced 2 beats apart */
+          const SWAPS = [BEAT * 5, BEAT * 7, BEAT * 9]; // 2.5425 / 3.5595 / 4.5765
+
+          /* ---------- macro layers: run all frame ---------- */
+
+          // progress rail — frame 1 of 9: fill animates 0/9 -> 1/9 linearly ("the film loads")
+          tl.fromTo(
+            "#hook01-railfill",
+            { scaleX: 0, transformOrigin: "left center" },
+            { scaleX: 1, duration: 6, ease: "none" },
+            0,
+          );
+
+          // ground glow — one very slow off-center drift, single finite pass
+          tl.fromTo(
+            "#hook01-glow",
+            { x: 0, y: 0 },
+            { x: 64, y: -42, duration: 6, ease: "sine.inOut" },
+            0,
+          );
+
+          /* ---------- Scene 1 (0.0–1.0s): ground resolves, ghost numeral settles, chrome wipes in ---------- */
+
+          // colossal "1,512" ghost — scale-settle 1.06 -> 1.0 into the backdrop, 6% ink
+          tl.fromTo(
+            "#hook01-ghost",
+            { scale: 1.06, opacity: 0, transformOrigin: "center center" },
+            { scale: 1, opacity: 0.06, duration: 1.2, ease: "power3.out" },
+            0,
+          );
+
+          // kicker "/ 01 — THE QUESTION" — mask-wipe (overflow-hidden wrapper, inner slides in)
+          tl.fromTo(
+            "#hook01-kickerin",
+            { xPercent: -104 },
+            { xPercent: 0, duration: 0.7, ease: "power4.out" },
+            0.25,
+          );
+
+          // dim frame number top-right
+          tl.fromTo(
+            "#hook01-framenum",
+            { opacity: 0, y: 6 },
+            { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" },
+            0.35,
+          );
+
+          /* ---------- Scene 2 (1.0–2.0s): line 1 builds per-word (y+blur), counter lands ON the bar ---------- */
+
+          tl.fromTo(
+            gsap.utils.toArray(".hk1-w"),
+            { y: 44, opacity: 0, filter: "blur(10px)" },
+            {
+              y: 0,
+              opacity: 1,
+              filter: "blur(0px)",
+              duration: 0.55,
+              ease: "power3.out",
+              stagger: 0.09,
+            },
+            1.0,
+          );
+
+          // inline count-up — accent mono, fast, lands exactly on the bar line (t = BAR)
+          const numEl = document.getElementById("hook01-num");
+          const countState = { v: 0 };
+          const COUNT_START = 1.36; // = word 5's entrance in the stagger
+          tl.to(
+            countState,
+            {
+              v: 1512,
+              duration: BAR - COUNT_START,
+              ease: "power2.out",
+              onUpdate: () => {
+                numEl.textContent = Math.round(countState.v).toLocaleString("en-US");
+              },
+            },
+            COUNT_START,
+          );
+
+          /* ---------- Scene 3 (2.0–5.0s): line condenses up 12%; stem holds; tail token hard-cut cycles ---------- */
+
+          // line 1 condenses up 12% and yields the stage
+          tl.to(
+            "#hook01-line1",
+            {
+              y: -60,
+              scale: 0.88,
+              transformOrigin: "left top",
+              duration: 0.55,
+              ease: "power3.inOut",
+            },
+            2.1,
+          );
+
+          // stem "what did they" per-word rise (y+blur) — holds while the token cycles
+          tl.fromTo(
+            gsap.utils.toArray(".hk1-sw"),
+            { y: 52, opacity: 0, filter: "blur(12px)" },
+            {
+              y: 0,
+              opacity: 1,
+              filter: "blur(0px)",
+              duration: 0.5,
+              ease: "power3.out",
+              stagger: 0.08,
+            },
+            2.25,
+          );
+
+          // token hard-cut cycle — discrete text states, instant swap, no tween between states
+          const tokenEl = document.getElementById("hook01-token");
+          const TOKEN_SEQ = [
+            { t: 0.0, text: "" },
+            { t: SWAPS[0], text: "build?" },
+            { t: SWAPS[1], text: "spend?" },
+            { t: SWAPS[2], text: "break?" },
+          ];
+          function tokenAt(time) {
+            for (let i = TOKEN_SEQ.length - 1; i >= 0; i--) {
+              if (time >= TOKEN_SEQ[i].t) return TOKEN_SEQ[i].text;
+            }
+            return "";
+          }
+          const tokenDriver = { t: 0 };
+          tl.to(
+            tokenDriver,
+            {
+              t: 6,
+              duration: 6,
+              ease: "none",
+              onUpdate: () => {
+                tokenEl.textContent = tokenAt(tokenDriver.t);
+              },
+            },
+            0,
+          );
+
+          // each swap ticks the ghost numeral 2% brighter — the data pulses with the question
+          tl.to("#hook01-ghost", { opacity: 0.08, duration: 0.12, ease: "power1.out" }, SWAPS[0]);
+          tl.to("#hook01-ghost", { opacity: 0.10, duration: 0.12, ease: "power1.out" }, SWAPS[1]);
+          tl.to("#hook01-ghost", { opacity: 0.12, duration: 0.12, ease: "power1.out" }, SWAPS[2]);
+
+          /* ---------- Scene 4 (5.0–6.0s): "break?" flips accent; all else dims 20%; held read ---------- */
+
+          tl.to("#hook01-token", { color: "#3ecf8e", duration: 0.15, ease: "power2.out" }, 5.0);
+          tl.to(
+            ["#hook01-line1", "#hook01-stem"],
+            { opacity: 0.8, duration: 0.45, ease: "power2.out" },
+            5.0,
+          );
+          tl.to("#hook01-ghost", { opacity: 0.096, duration: 0.45, ease: "power2.out" }, 5.0);
+          // held read to 6.0 — no exit (non-final frame; the root transition IS the exit)
+
+          window.__timelines["01-hook"] = tl;
+        </script>
+      </div>
+    </template>
+  </body>
+</html>

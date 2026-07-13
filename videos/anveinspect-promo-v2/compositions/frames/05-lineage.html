@@ -1,0 +1,507 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>05-lineage — source (head ignored by runtime)</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* Root styled via #root — never a class on the composition root. */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* ---------- GROUND SYSTEM (own clip layer, never on #root) ---------- */
+        .ground-layer {
+          position: absolute;
+          inset: 0;
+        }
+        #l5-base {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+        }
+        #l5-dots {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(238, 242, 247, 0.55) 1px, transparent 1.3px);
+          background-size: 24px 24px;
+          opacity: 0.06;
+        }
+        #l5-glow {
+          position: absolute;
+          left: 980px;
+          top: -420px;
+          width: 1500px;
+          height: 1500px;
+          background: radial-gradient(circle, rgba(62, 207, 142, 0.055) 0%, rgba(62, 207, 142, 0.02) 42%, transparent 68%);
+          will-change: transform;
+        }
+        #l5-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(3, 5, 8, 0.62) 100%);
+        }
+
+        /* ---------- CONTENT ---------- */
+        #l5-content {
+          position: absolute;
+          inset: 0;
+        }
+        #l5-cam-outer {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 50%;
+          will-change: transform;
+        }
+        #l5-cam-inner {
+          position: absolute;
+          inset: 0;
+        }
+        #l5-shot {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          opacity: 0; /* fromTo entrance drives it; dimmed ~70% at peak */
+          filter: saturate(0.85) brightness(0.85);
+        }
+        #l5-graph {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+        }
+        #l5-graph text {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        }
+        #l5-hub-label {
+          font-size: 28px;
+          letter-spacing: 0.04em;
+          fill: #eef2f7;
+          opacity: 0;
+        }
+        #l5-count {
+          font-size: 31px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+          fill: #cfd6de;
+          font-variant-numeric: tabular-nums;
+          opacity: 0;
+          transform-box: fill-box;
+          transform-origin: center;
+          will-change: transform;
+        }
+        .edge-weight {
+          font-size: 22px;
+          letter-spacing: 0.03em;
+          fill: #cfd6de;
+          font-variant-numeric: tabular-nums;
+          opacity: 0;
+          transform-box: fill-box;
+          transform-origin: center;
+        }
+
+        /* satellite nodes — HTML layer above the SVG edges (hub-above-lines law) */
+        #l5-sats {
+          position: absolute;
+          inset: 0;
+        }
+        .sat {
+          position: absolute; /* left/top baked per node in JS — no CSS transform (GSAP owns transform) */
+          will-change: transform, opacity, filter;
+        }
+        .sat-dot {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: #0e141d;
+          box-shadow: 0 0 22px rgba(62, 207, 142, 0.10);
+        }
+        .sat-label {
+          position: absolute;
+          top: 100%;
+          left: 50%;
+          width: 360px;
+          margin-left: -180px;
+          margin-top: 9px;
+          text-align: center;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          color: #aeb8c4;
+          text-transform: lowercase;
+          letter-spacing: 0.03em;
+          white-space: nowrap;
+        }
+
+        /* graph-anchored callout pill (zooms with the camera) */
+        #l5-pill {
+          position: absolute;
+          left: 1030px;
+          top: 452px;
+          padding: 9px 18px;
+          border: 1px solid rgba(62, 207, 142, 0.4);
+          background: rgba(14, 20, 29, 0.88);
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 20px;
+          letter-spacing: 0.05em;
+          color: #3ecf8e;
+          white-space: nowrap;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        /* screen-space proof pill, lower-right, above the keep-out cutoff */
+        #l5-proofpill {
+          position: absolute;
+          right: 64px;
+          top: 808px;
+          padding: 10px 20px;
+          border: 1px solid rgba(238, 242, 247, 0.22);
+          background: rgba(10, 13, 18, 0.85);
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 19px;
+          letter-spacing: 0.05em;
+          color: #aeb8c4;
+          white-space: nowrap;
+          opacity: 0;
+          will-change: transform, opacity, filter;
+        }
+        #l5-proofpill em {
+          font-style: normal;
+          color: #3ecf8e;
+        }
+
+        /* ---------- CHROME SYSTEM (top 60px, dim) ---------- */
+        #l5-chrome {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        #l5-rail-track {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background: rgba(238, 242, 247, 0.07);
+        }
+        #l5-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background: rgba(62, 207, 142, 0.85);
+          transform-origin: 0% 50%;
+          will-change: transform;
+        }
+        #l5-kicker {
+          position: absolute;
+          top: 24px;
+          left: 40px;
+          overflow: hidden;
+          display: inline-block;
+        }
+        #l5-kicker-in {
+          display: inline-block;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 19px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(62, 207, 142, 0.55);
+          will-change: transform;
+        }
+        #l5-num {
+          position: absolute;
+          top: 24px;
+          right: 40px;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 19px;
+          letter-spacing: 0.14em;
+          color: rgba(238, 242, 247, 0.32);
+          opacity: 0;
+        }
+
+        /* ---------- GRAIN (static, above content) ---------- */
+        #l5-grain {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        #l5-grain-svg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+        }
+      </style>
+
+      <div id="root" data-composition-id="05-lineage" data-duration="9" data-width="1920" data-height="1080">
+        <!-- GROUND (full-bleed clip layer — never painted on #root) -->
+        <div id="l5-ground" class="clip ground-layer" data-start="0" data-duration="9" data-track-index="0">
+          <div id="l5-base"></div>
+          <div id="l5-dots"></div>
+          <div id="l5-glow"></div>
+          <div id="l5-vignette"></div>
+        </div>
+
+        <!-- CONTENT -->
+        <div id="l5-content" class="clip" data-start="0" data-duration="9" data-track-index="1">
+          <div id="l5-cam-outer">
+            <div id="l5-cam-inner">
+              <!-- Scene 4 proof: the REAL screen, dimmed, behind the drawn graph -->
+              <img id="l5-shot" src="assets/view-lineage.png" alt="" />
+
+              <!-- Native SVG lineage graph -->
+              <svg id="l5-graph" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+                <g id="l5-edges"></g>
+                <g id="l5-arrows"></g>
+                <g id="l5-hub-g">
+                  <circle id="l5-hub-halo" cx="960" cy="540" r="64" fill="none" stroke="#3ecf8e" stroke-width="1" opacity="0" />
+                  <circle id="l5-hub-core" cx="960" cy="540" r="44" fill="#0e141d" opacity="0" />
+                  <circle id="l5-hub-fill" cx="960" cy="540" r="44" fill="#3ecf8e" fill-opacity="0" />
+                  <circle id="l5-hub-ring" cx="960" cy="540" r="46" fill="none" stroke="#3ecf8e" stroke-width="2.5"
+                          stroke-linecap="round" transform="rotate(-90 960 540)" />
+                </g>
+                <g id="l5-labels">
+                  <text id="l5-hub-label" x="960" y="626" text-anchor="middle">voice-forms</text>
+                  <text id="l5-count" x="806" y="398" text-anchor="middle">0&#215;</text>
+                  <text id="l5-w94" class="edge-weight" x="1170" y="486" text-anchor="middle">94&#215;</text>
+                  <text id="l5-w82" class="edge-weight" x="752" y="572" text-anchor="middle">82&#215;</text>
+                  <text id="l5-w39" class="edge-weight" x="1124" y="646" text-anchor="middle">39&#215;</text>
+                </g>
+              </svg>
+
+              <!-- Satellite nodes (HTML, above edges so lines terminate AT node rims) -->
+              <div id="l5-sats"></div>
+
+              <!-- Graph-anchored callout -->
+              <div id="l5-pill">who spawns whom</div>
+            </div>
+          </div>
+
+          <!-- Screen-space proof annotation -->
+          <div id="l5-proofpill">this is a real screen &#183; <em>22 agents</em> &#183; <em>21 relationships</em></div>
+        </div>
+
+        <!-- CHROME -->
+        <div id="l5-chrome" class="clip" data-start="0" data-duration="9" data-track-index="2">
+          <div id="l5-rail-track"></div>
+          <div id="l5-rail"></div>
+          <div id="l5-kicker"><span id="l5-kicker-in">/ 05 &#8212; LINEAGE</span></div>
+          <div id="l5-num">05</div>
+        </div>
+
+        <!-- FILM GRAIN (static — not animated) -->
+        <div id="l5-grain" class="clip" data-start="0" data-duration="9" data-track-index="3">
+          <svg id="l5-grain-svg" xmlns="http://www.w3.org/2000/svg">
+            <filter id="l5-grainf" x="0" y="0" width="100%" height="100%">
+              <feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="2" seed="11" stitchTiles="stitch" />
+              <feColorMatrix type="saturate" values="0" />
+            </filter>
+            <rect id="l5-grain-rect" width="100%" height="100%" filter="url(#l5-grainf)" opacity="0.05" />
+          </svg>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+
+        /* ============ deterministic build (no Math.random, no clocks) ============ */
+        var HUB = { x: 960, y: 540, r: 46 };
+        var BEAT = 0.5085; /* 118bpm */
+        var WAVES = [1.5255, 2.034, 2.5425]; /* beats 3 / 4 / 5 — three staggered waves */
+
+        /* REAL lineage data — node size by run volume, edge width by weight, organic ring */
+        var SATS = [
+          { label: "workflow-subagent",  x: 588,  y: 300, r: 40, w: 5,   stroke: "rgba(62,207,142,0.92)",  wave: 0, wi: 0 },
+          { label: "content creator",    x: 1368, y: 470, r: 27, w: 2.6, stroke: "rgba(62,207,142,0.60)",  wave: 0, wi: 1 },
+          { label: "general-purpose",    x: 540,  y: 640, r: 26, w: 2.4, stroke: "rgba(62,207,142,0.55)",  wave: 0, wi: 2 },
+          { label: "senior developer",   x: 368,  y: 452, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 0, wi: 3 },
+          { label: "explore",            x: 1188, y: 262, r: 17, w: 1.3, stroke: "rgba(238,242,247,0.30)", wave: 1, wi: 0 },
+          { label: "ui designer",        x: 1436, y: 316, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 1, wi: 1 },
+          { label: "seo specialist",     x: 1258, y: 772, r: 19, w: 1.6, stroke: "rgba(62,207,142,0.45)",  wave: 1, wi: 2 },
+          { label: "growth hacker",      x: 816,  y: 170, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 1, wi: 3 },
+          { label: "technical writer",   x: 1492, y: 660, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 2, wi: 0 },
+          { label: "frontend developer", x: 712,  y: 800, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 2, wi: 1 },
+          { label: "code reviewer",      x: 1018, y: 798, r: 15, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 2, wi: 2 },
+          { label: "plan",               x: 1096, y: 152, r: 14, w: 1,   stroke: "rgba(238,242,247,0.26)", wave: 2, wi: 3 }
+        ];
+
+        var SVG_NS = "http://www.w3.org/2000/svg";
+        var edgesG = document.getElementById("l5-edges");
+        var arrowsG = document.getElementById("l5-arrows");
+        var satsWrap = document.getElementById("l5-sats");
+
+        SATS.forEach(function (s, i) {
+          var dx = s.x - HUB.x, dy = s.y - HUB.y;
+          var len = Math.hypot(dx, dy);
+          var ux = dx / len, uy = dy / len;
+
+          /* edge: hub rim -> just short of node rim (arrowhead owns the last px) */
+          var sx = HUB.x + ux * (HUB.r + 6), sy = HUB.y + uy * (HUB.r + 6);
+          var ex = s.x - ux * (s.r + 15), ey = s.y - uy * (s.r + 15);
+          var p = document.createElementNS(SVG_NS, "path");
+          p.setAttribute("id", "l5-edge-" + i);
+          p.setAttribute("d", "M " + sx + " " + sy + " L " + ex + " " + ey);
+          p.setAttribute("fill", "none");
+          p.setAttribute("stroke", s.stroke);
+          p.setAttribute("stroke-width", String(s.w));
+          p.setAttribute("stroke-linecap", "round");
+          edgesG.appendChild(p);
+          /* measured draw — getTotalLength, per svg-path-draw */
+          var plen = p.getTotalLength() + 2;
+          p.style.strokeDasharray = String(plen);
+          p.style.strokeDashoffset = String(plen);
+
+          /* arrowhead at the satellite end, direction hub -> satellite; lands last */
+          var tipX = s.x - ux * (s.r + 3), tipY = s.y - uy * (s.r + 3);
+          var deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+          var a = document.createElementNS(SVG_NS, "path");
+          a.setAttribute("id", "l5-arrow-" + i);
+          a.setAttribute("d", "M 0 0 L -13 -5 L -13 5 Z");
+          a.setAttribute("fill", s.stroke);
+          a.setAttribute("transform", "translate(" + tipX + "," + tipY + ") rotate(" + deg + ")");
+          a.setAttribute("opacity", "0");
+          arrowsG.appendChild(a);
+
+          /* satellite node: dark fill, accent ring, mono lowercase label beneath.
+             left/top baked (no CSS transform) so GSAP owns transform cleanly. */
+          var el = document.createElement("div");
+          el.className = "sat";
+          el.id = "l5-sat-" + i;
+          el.style.left = (s.x - s.r) + "px";
+          el.style.top = (s.y - s.r) + "px";
+          el.style.width = (s.r * 2) + "px";
+          el.style.height = (s.r * 2) + "px";
+
+          var dot = document.createElement("div");
+          dot.className = "sat-dot";
+          dot.id = "l5-satdot-" + i;
+          var big = s.r >= 24;
+          dot.style.border = (big ? "2px" : "1.5px") + " solid rgba(62,207,142," + (big ? "0.85" : "0.55") + ")";
+          el.appendChild(dot);
+
+          var lb = document.createElement("div");
+          lb.className = "sat-label";
+          lb.id = "l5-satlabel-" + i;
+          lb.textContent = s.label;
+          lb.style.fontSize = (s.r >= 36 ? 25 : s.r >= 24 ? 21 : 19) + "px";
+          el.appendChild(lb);
+
+          satsWrap.appendChild(el);
+        });
+
+        /* hub ring self-draw setup (measured) */
+        var hubRing = document.getElementById("l5-hub-ring");
+        var ringLen = hubRing.getTotalLength() + 2;
+        hubRing.style.strokeDasharray = String(ringLen);
+        hubRing.style.strokeDashoffset = String(ringLen);
+
+        var countEl = document.getElementById("l5-count");
+
+        /* ============ ONE paused timeline ============ */
+        var tl = gsap.timeline({ paused: true });
+
+        /* --- CHROME: rail 4/9 -> 5/9 across the full 9s (the film loads) --- */
+        tl.fromTo("#l5-rail", { scaleX: 4 / 9 }, { scaleX: 5 / 9, duration: 9, ease: "none" }, 0);
+        /* kicker mask-wipes in during the first second */
+        tl.fromTo("#l5-kicker-in", { xPercent: -104 }, { xPercent: 0, duration: 0.7, ease: "power3.out" }, 0.12);
+        tl.fromTo("#l5-num", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.out" }, 0.3);
+
+        /* --- GROUND: one very slow glow-field drift (finite, deterministic) --- */
+        tl.fromTo("#l5-glow", { x: -36, y: -16 }, { x: 30, y: 14, duration: 9, ease: "sine.inOut" }, 0);
+
+        /* ================= Scene 1 (0.0–1.5s): hub blooms center ================= */
+        tl.fromTo("#l5-hub-core", { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, 0.2);
+        tl.to("#l5-hub-ring", { strokeDashoffset: 0, duration: 0.85, ease: "power2.inOut" }, 0.15);
+        /* green fill pulse on the bloom */
+        tl.fromTo("#l5-hub-fill", { fillOpacity: 0 }, { fillOpacity: 0.16, duration: 0.45, ease: "power2.out" }, 0.5);
+        tl.to("#l5-hub-fill", { fillOpacity: 0.09, duration: 0.5, ease: "power2.inOut" }, 1.05);
+        tl.fromTo("#l5-hub-halo", { opacity: 0 }, { opacity: 0.18, duration: 0.5, ease: "power1.out" }, 0.9);
+        tl.fromTo("#l5-hub-label", { opacity: 0, y: 14 }, { opacity: 0.95, y: 0, duration: 0.5, ease: "power3.out" }, 0.85);
+
+        /* ====== Scene 2 (1.5–4.0s): satellites spring in — three waves on beats;
+                 each node's edge draws hub->node as it lands; arrowhead lands last ====== */
+        SATS.forEach(function (s, i) {
+          var t = WAVES[s.wave] + s.wi * 0.07; /* index-derived stagger, wave lands inside one beat */
+          /* scale+blur pop (two properties min), power3 settle — spring-pop-entrance */
+          tl.fromTo(
+            "#l5-sat-" + i,
+            { scale: 0, opacity: 0, filter: "blur(10px)" },
+            { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.55, ease: "power3.out" },
+            t
+          );
+          tl.to("#l5-edge-" + i, { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" }, t + 0.12);
+          tl.fromTo("#l5-arrow-" + i, { opacity: 0 }, { opacity: 1, duration: 0.18, ease: "power1.out" }, t + 0.58);
+        });
+
+        /* heaviest edge's 1,061x mono counter — counts up beside the thick edge,
+           lands ON the bar line (bar 2 = 4.068s) and flips accent green there */
+        var cnt = { v: 0 };
+        tl.fromTo("#l5-count", { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.out" }, 1.9);
+        tl.to(
+          cnt,
+          {
+            v: 1061,
+            duration: 2.168,
+            ease: "power3.out",
+            onUpdate: function () {
+              countEl.textContent = Math.round(cnt.v).toLocaleString("en-US") + "×";
+            }
+          },
+          1.9
+        );
+        tl.to("#l5-count", { fill: "#3ecf8e", duration: 0.18, ease: "power1.out" }, 4.068);
+        tl.to("#l5-count", { scale: 1.14, duration: 0.14, ease: "power2.out" }, 4.068);
+        tl.to("#l5-count", { scale: 1, duration: 0.3, ease: "power2.inOut" }, 4.208);
+
+        /* ====== Scene 3 (4.0–6.0s): slow zoom-to-target push toward the hub.
+                 Hub sits at canvas center -> offset = 0, counter-translate = 0
+                 (coordinate-target-zoom, symmetric case). One camera move only. ====== */
+        tl.to("#l5-cam-outer", { scale: 1.12, duration: 3.558, ease: "power2.inOut" }, 4.068);
+
+        /* pill callout springs beside the hub (origin-anchored pop) */
+        tl.fromTo(
+          "#l5-pill",
+          { scale: 0, opacity: 0, transformOrigin: "0% 100%" },
+          { scale: 1, opacity: 1, duration: 0.5, ease: "power3.out" },
+          4.322
+        );
+
+        /* secondary weights fade in on three more edges at 60% opacity */
+        tl.fromTo("#l5-w94", { opacity: 0, y: 10 }, { opacity: 0.6, y: 0, duration: 0.45, ease: "power2.out" }, 4.831);
+        tl.fromTo("#l5-w82", { opacity: 0, y: 10 }, { opacity: 0.6, y: 0, duration: 0.45, ease: "power2.out" }, 5.085);
+        tl.fromTo("#l5-w39", { opacity: 0, y: 10 }, { opacity: 0.6, y: 0, duration: 0.45, ease: "power2.out" }, 5.339);
+
+        /* ====== Scene 4 (6.0–7.5s): the REAL screen crossfades in dimmed BEHIND
+                 the drawn graph (proof it ships); proof pill rises lower-right ====== */
+        tl.fromTo("#l5-shot", { opacity: 0 }, { opacity: 0.3, duration: 1.1, ease: "power2.inOut" }, 6.102);
+        tl.fromTo(
+          "#l5-proofpill",
+          { opacity: 0, y: 26, filter: "blur(6px)" },
+          { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.7, ease: "power3.out" },
+          6.61
+        );
+
+        /* ====== Scene 5 (7.5–9.0s): held read — grain + the hub's slow pulse only
+                 (finite two-leg pulse; no repeat/yoyo) ====== */
+        tl.to("#l5-hub-fill", { fillOpacity: 0.18, duration: 0.7, ease: "sine.inOut" }, 7.7);
+        tl.to("#l5-hub-fill", { fillOpacity: 0.09, duration: 0.6, ease: "sine.inOut" }, 8.4);
+        tl.to("#l5-hub-halo", { opacity: 0.3, duration: 0.7, ease: "sine.inOut" }, 7.7);
+        tl.to("#l5-hub-halo", { opacity: 0.18, duration: 0.6, ease: "sine.inOut" }, 8.4);
+
+        window.__timelines["05-lineage"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

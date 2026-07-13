@@ -1,0 +1,620 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>07-paging</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============ root (styled via #root only) ============ */
+        #root {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: hidden;
+          --ink: #eef2f7;
+          --canvas: #0a0d12;
+          --accent: #3ecf8e;
+          --amber: #f0a63a;
+          --red: #e5484d;
+          --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
+        /* ============ ground system (clip, track 0) ============ */
+        #f7-ground {
+          position: absolute;
+          inset: 0;
+          background: #0a0d12;
+          overflow: hidden;
+        }
+        #f7-dotgrid {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(rgba(238, 242, 247, 0.06) 1px, transparent 1.2px);
+          background-size: 24px 24px;
+        }
+        #f7-glow {
+          position: absolute;
+          left: -25%;
+          top: -25%;
+          width: 150%;
+          height: 150%;
+          background: radial-gradient(ellipse 42% 34% at 72% 26%, rgba(62, 207, 142, 0.055), transparent 62%);
+          will-change: transform;
+        }
+        #f7-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(ellipse 70% 62% at 50% 45%, transparent 55%, rgba(0, 0, 0, 0.42) 100%);
+        }
+
+        /* ============ content (clip, track 1) ============ */
+        #f7-content {
+          position: absolute;
+          inset: 0;
+        }
+
+        /* ---- chrome system (top 60px) ---- */
+        #f7-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 1920px;
+          height: 2px;
+          background: var(--accent);
+          opacity: 0.8;
+          transform-origin: 0 0;
+          will-change: transform;
+        }
+        #f7-kicker {
+          position: absolute;
+          top: 24px;
+          left: 64px;
+          overflow: hidden;
+        }
+        #f7-kicker-inner {
+          display: inline-block;
+          font-family: var(--font-mono);
+          font-size: 19px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(238, 242, 247, 0.45);
+          white-space: nowrap;
+          will-change: transform;
+        }
+        #f7-kicker-inner .slash {
+          color: rgba(62, 207, 142, 0.75);
+        }
+        #f7-framenum {
+          position: absolute;
+          top: 24px;
+          right: 64px;
+          font-family: var(--font-mono);
+          font-size: 19px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          color: rgba(238, 242, 247, 0.3);
+          font-variant-numeric: tabular-nums;
+        }
+
+        /* ---- EKG group (lower third of content, all above y=900) ---- */
+        #f7-ekg-group {
+          position: absolute;
+          inset: 0;
+        }
+        #f7-ekg-svg {
+          position: absolute;
+          left: 90px;
+          top: 600px;
+          width: 1740px;
+          height: 260px;
+          overflow: visible;
+        }
+        #f7-ekg-path {
+          fill: none;
+          stroke: rgba(238, 242, 247, 0.38);
+          stroke-width: 1.5;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        #f7-ekg-head {
+          fill: rgba(238, 242, 247, 0.9);
+          opacity: 0;
+        }
+        .f7-ts {
+          position: absolute;
+          top: 634px;
+          font-family: var(--font-mono);
+          font-size: 18px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          color: var(--ink);
+          font-variant-numeric: tabular-nums;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f7-ts1 { left: 250px; }
+        #f7-ts2 { left: 450px; }
+        #f7-ts3 { left: 650px; }
+
+        /* ---- alert card (rebuilt macOS notification, cutout focal) ---- */
+        #f7-card {
+          position: absolute;
+          top: 96px;
+          right: 72px;
+          width: 560px;
+          background: rgba(21, 27, 36, 0.94);
+          border: 1px solid rgba(238, 242, 247, 0.12);
+          border-radius: 16px;
+          padding: 20px 24px 22px;
+          box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5);
+          opacity: 0;
+          will-change: transform, opacity, filter;
+        }
+        #f7-card-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 18px;
+        }
+        #f7-dot-wrap {
+          position: relative;
+          width: 18px;
+          height: 18px;
+          margin-top: 3px;
+          flex: 0 0 auto;
+        }
+        #f7-dot-halo {
+          position: absolute;
+          left: -9px;
+          top: -9px;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(62, 207, 142, 0.5), transparent 70%);
+          opacity: 0.45;
+        }
+        #f7-dot {
+          position: absolute;
+          inset: 1px;
+          border-radius: 50%;
+          background: var(--accent);
+          will-change: transform;
+        }
+        #f7-card-col {
+          flex: 1 1 auto;
+          min-width: 0;
+        }
+        #f7-card-title {
+          font-family: var(--font-mono);
+          font-size: 18px;
+          font-weight: 500;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(238, 242, 247, 0.92);
+          white-space: nowrap;
+        }
+        #f7-card-redline {
+          height: 2px;
+          margin: 9px 0 10px;
+          background: var(--red);
+          transform-origin: 0 50%;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+        #f7-card-body {
+          font-family: var(--font-display);
+          font-size: 20px;
+          font-weight: 400;
+          line-height: 1.45;
+          color: rgba(238, 242, 247, 0.72);
+        }
+        #f7-card-body .overdue {
+          color: var(--amber);
+          font-weight: 500;
+        }
+        #f7-card-now {
+          position: absolute;
+          top: 18px;
+          right: 20px;
+          font-family: var(--font-mono);
+          font-size: 14px;
+          letter-spacing: 0.1em;
+          color: rgba(238, 242, 247, 0.35);
+        }
+
+        /* ---- pager lines (center-left block, clears the EKG peaks) ---- */
+        #f7-pager {
+          position: absolute;
+          left: 120px;
+          top: 390px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .f7-line {
+          white-space: nowrap;
+        }
+        .f7-line .w {
+          display: inline-block;
+          opacity: 0;
+          will-change: transform, opacity, filter;
+        }
+        #f7-line1,
+        #f7-line3 {
+          font-family: var(--font-display);
+          font-size: 44px;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          line-height: 1.3;
+          color: rgba(238, 242, 247, 0.5);
+          text-transform: lowercase;
+        }
+        #f7-line2 {
+          font-family: var(--font-display);
+          font-size: 132px;
+          font-weight: 900;
+          letter-spacing: -0.03em;
+          line-height: 1.05;
+          color: var(--ink);
+          text-transform: lowercase;
+        }
+        .f7-line .w + .w {
+          margin-left: 0.24em;
+        }
+
+        /* ============ grain (clip, track 2, above content) ============ */
+        #f7-grain {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+        #f7-grain svg {
+          width: 100%;
+          height: 100%;
+          display: block;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="07-paging"
+        data-duration="7"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- GROUND SYSTEM — full-bleed clip on the lowest track -->
+        <div
+          id="f7-ground"
+          class="clip"
+          data-start="0"
+          data-duration="7"
+          data-track-index="0"
+        >
+          <div id="f7-dotgrid"></div>
+          <div id="f7-glow"></div>
+          <div id="f7-vignette"></div>
+        </div>
+
+        <!-- CONTENT -->
+        <div
+          id="f7-content"
+          class="clip"
+          data-start="0"
+          data-duration="7"
+          data-track-index="1"
+        >
+          <!-- chrome -->
+          <div id="f7-rail"></div>
+          <div id="f7-kicker">
+            <span id="f7-kicker-inner"><span class="slash">/</span>&nbsp;07&nbsp;&mdash;&nbsp;THE&nbsp;PAGER</span>
+          </div>
+          <div id="f7-framenum">07</div>
+
+          <!-- EKG heartbeat line + timestamps -->
+          <div id="f7-ekg-group">
+            <svg id="f7-ekg-svg" viewBox="0 0 1740 260" xmlns="http://www.w3.org/2000/svg">
+              <path
+                id="f7-ekg-path"
+                d="M 0 172 H 120 h 40 l 8 -12 l 8 12 h 14 l 10 -96 l 14 124 l 8 -28 h 20 h 78 h 40 l 8 -12 l 8 12 h 14 l 10 -96 l 14 124 l 8 -28 h 20 h 78 h 40 l 8 -12 l 8 12 h 14 l 10 -96 l 14 124 l 8 -28 h 20 H 1740"
+              />
+              <circle id="f7-ekg-head" cx="0" cy="172" r="4" />
+            </svg>
+            <div class="f7-ts" id="f7-ts1">03:00</div>
+            <div class="f7-ts" id="f7-ts2">03:15</div>
+            <div class="f7-ts" id="f7-ts3">03:30</div>
+          </div>
+
+          <!-- rebuilt macOS notification card (focal) -->
+          <div id="f7-card">
+            <div id="f7-card-now">now</div>
+            <div id="f7-card-row">
+              <div id="f7-dot-wrap">
+                <div id="f7-dot-halo"></div>
+                <div id="f7-dot"></div>
+              </div>
+              <div id="f7-card-col">
+                <div id="f7-card-title">AnveInspect &mdash; MISSED WINDOW</div>
+                <div id="f7-card-redline"></div>
+                <div id="f7-card-body">
+                  nightly-agent missed daily 03:00 &mdash;
+                  <span class="overdue">8h overdue</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- pager lines -->
+          <div id="f7-pager">
+            <div class="f7-line" id="f7-line1"><span
+                class="w" id="f7-l1w1">your</span><span
+                class="w" id="f7-l1w2">3am</span><span
+                class="w" id="f7-l1w3">agent</span><span
+                class="w" id="f7-l1w4">didn&rsquo;t</span><span
+                class="w" id="f7-l1w5">run.</span></div>
+            <div class="f7-line" id="f7-line2"><span
+                class="w" id="f7-l2w1">you</span><span
+                class="w" id="f7-l2w2">got</span><span
+                class="w" id="f7-l2w3">paged.</span></div>
+            <div class="f7-line" id="f7-line3"><span
+                class="w" id="f7-l3w1">nobody</span><span
+                class="w" id="f7-l3w2">else</span><span
+                class="w" id="f7-l3w3">noticed.</span></div>
+          </div>
+        </div>
+
+        <!-- FILM GRAIN — static feTurbulence tile above content -->
+        <div
+          id="f7-grain"
+          class="clip"
+          data-start="0"
+          data-duration="7"
+          data-track-index="2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg">
+            <filter id="f7-grain-filter">
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.9"
+                numOctaves="2"
+                stitchTiles="stitch"
+                seed="7"
+              />
+            </filter>
+            <rect width="100%" height="100%" filter="url(#f7-grain-filter)" opacity="0.05" />
+          </svg>
+        </div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+
+        // ---- musical grid (118bpm) ----
+        var BEAT = 0.5085;
+        var BAR = 2.034;
+
+        // ---- EKG path setup (svg-path-draw rule: measured getTotalLength) ----
+        var ekgPath = document.getElementById("f7-ekg-path");
+        var ekgHead = document.getElementById("f7-ekg-head");
+        var ekgLen = ekgPath.getTotalLength();
+        ekgPath.style.strokeDasharray = String(ekgLen);
+        ekgPath.style.strokeDashoffset = String(ekgLen);
+
+        var tl = gsap.timeline({ paused: true });
+
+        /* =====================================================
+           CHROME — kicker mask-wipe, frame number, progress rail
+           Rail: 6/9 -> 7/9 of the film across the full 7s.
+           ===================================================== */
+        tl.fromTo(
+          "#f7-rail",
+          { scaleX: 6 / 9 },
+          { scaleX: 7 / 9, duration: 7, ease: "none" },
+          0
+        );
+        tl.fromTo(
+          "#f7-kicker-inner",
+          { xPercent: -103 },
+          { xPercent: 0, duration: 0.7, ease: "power3.out" },
+          0.1
+        );
+        tl.fromTo(
+          "#f7-framenum",
+          { opacity: 0, y: -8 },
+          { opacity: 1, y: 0, duration: 0.6, ease: "power2.out" },
+          0.2
+        );
+
+        /* =====================================================
+           GROUND — one very slow glow-field drift (macro move)
+           ===================================================== */
+        tl.fromTo(
+          "#f7-glow",
+          { x: -26, y: -12 },
+          { x: 14, y: 8, duration: 7, ease: "none" },
+          0
+        );
+
+        /* =====================================================
+           SCENE 1 (0.0-2.0s) — the heartbeat draws, then FLATLINES.
+           Constant-speed pen trace (ease none) sized so the full
+           path — three pulse complexes then the long flat tail —
+           completes exactly on the bar at t=2.034s.
+           ===================================================== */
+        var DRAW_START = 0.25;
+        var DRAW_END = BAR; // flatline lands on the bar
+        var DRAW_DUR = DRAW_END - DRAW_START;
+
+        tl.fromTo(
+          "#f7-ekg-path",
+          { strokeDashoffset: ekgLen },
+          { strokeDashoffset: 0, duration: DRAW_DUR, ease: "none" },
+          DRAW_START
+        );
+
+        // tracing head dot — deterministic function of draw progress
+        var drawDrv = { p: 0 };
+        tl.fromTo(
+          "#f7-ekg-head",
+          { opacity: 0 },
+          { opacity: 1, duration: 0.15, ease: "power1.out" },
+          DRAW_START
+        );
+        tl.to(
+          drawDrv,
+          {
+            p: 1,
+            duration: DRAW_DUR,
+            ease: "none",
+            onUpdate: function () {
+              var pt = ekgPath.getPointAtLength(drawDrv.p * ekgLen);
+              ekgHead.setAttribute("cx", pt.x);
+              ekgHead.setAttribute("cy", pt.y);
+            },
+          },
+          DRAW_START
+        );
+        // the heartbeat's cursor dies right after the flatline lands
+        tl.to(
+          "#f7-ekg-head",
+          { opacity: 0, duration: 0.45, ease: "power2.in" },
+          DRAW_END + 0.05
+        );
+
+        // timestamps tick past above the trace (30% opacity, two-property entrances)
+        tl.fromTo(
+          "#f7-ts1",
+          { opacity: 0, x: 14, filter: "blur(4px)" },
+          { opacity: 0.3, x: 0, filter: "blur(0px)", duration: 0.5, ease: "power2.out" },
+          0.45
+        );
+        tl.fromTo(
+          "#f7-ts2",
+          { opacity: 0, x: 14, filter: "blur(4px)" },
+          { opacity: 0.3, x: 0, filter: "blur(0px)", duration: 0.5, ease: "power2.out" },
+          0.75
+        );
+        tl.fromTo(
+          "#f7-ts3",
+          { opacity: 0, x: 14, filter: "blur(4px)" },
+          { opacity: 0.3, x: 0, filter: "blur(0px)", duration: 0.5, ease: "power2.out" },
+          1.05
+        );
+
+        /* =====================================================
+           SCENE 2 (2.0-3.5s) — on the flatline beat the rebuilt
+           macOS notification slide-up-crossfades in top-right
+           (titlecard-reveal's ONE restrained move), then a red
+           hairline pulses ONCE under its title.
+           ===================================================== */
+        tl.fromTo(
+          "#f7-card",
+          { y: 44, opacity: 0, scale: 0.985, filter: "blur(10px)" },
+          {
+            y: 0,
+            opacity: 1,
+            scale: 1,
+            filter: "blur(0px)",
+            duration: 0.75,
+            ease: "power3.out",
+          },
+          BAR
+        );
+        // single red pulse — in fast, decays to a dim residual
+        tl.fromTo(
+          "#f7-card-redline",
+          { opacity: 0, scaleX: 0.4 },
+          { opacity: 0.9, scaleX: 1, duration: 0.22, ease: "power2.out" },
+          2.65
+        );
+        tl.to(
+          "#f7-card-redline",
+          { opacity: 0.22, duration: 0.7, ease: "power2.inOut" },
+          2.92
+        );
+
+        /* =====================================================
+           SCENE 3 (3.5-5.5s) — three pager lines per-word reveal
+           lower-left on successive beats of the grid; the trace
+           dims beneath them.
+           ===================================================== */
+        tl.to(
+          "#f7-ekg-group",
+          { opacity: 0.45, duration: 0.8, ease: "power2.inOut" },
+          3.5
+        );
+
+        var wordFrom = { opacity: 0, y: 30, filter: "blur(10px)" };
+        tl.fromTo(
+          "#f7-line1 .w",
+          wordFrom,
+          {
+            opacity: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.55,
+            ease: "power3.out",
+            stagger: 0.09,
+          },
+          BEAT * 7 // 3.56s
+        );
+        tl.fromTo(
+          "#f7-line2 .w",
+          { opacity: 0, y: 44, filter: "blur(14px)" },
+          {
+            opacity: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.7,
+            ease: "power4.out",
+            stagger: 0.11,
+          },
+          BAR * 2 // 4.07s — the display moment lands on the bar
+        );
+        tl.fromTo(
+          "#f7-line3 .w",
+          wordFrom,
+          {
+            opacity: 1,
+            y: 0,
+            filter: "blur(0px)",
+            duration: 0.55,
+            ease: "power3.out",
+            stagger: 0.09,
+          },
+          BEAT * 9 // 4.58s
+        );
+
+        /* =====================================================
+           SCENE 4 (5.5-7.0s) — DELIBERATE HELD READ.
+           Only live element: the card's app dot pulses slowly
+           (sine-wave-loop rule, bounded, sin(0)=0 at both ends
+           so the frame is settled at the cut).
+           ===================================================== */
+        var dotEl = document.getElementById("f7-dot");
+        var haloEl = document.getElementById("f7-dot-halo");
+        var pulse = { p: 0 };
+        tl.to(
+          pulse,
+          {
+            p: Math.PI * 2,
+            duration: 1.5,
+            ease: "none",
+            onUpdate: function () {
+              var s = Math.sin(pulse.p);
+              dotEl.style.transform = "scale(" + (1 + s * 0.14) + ")";
+              haloEl.style.opacity = String(0.45 + s * 0.3);
+            },
+          },
+          5.5
+        );
+
+        window.__timelines["07-paging"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

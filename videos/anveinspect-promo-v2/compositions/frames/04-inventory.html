@@ -1,0 +1,558 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>04-inventory — the whole fleet, counted</title>
+  </head>
+  <body>
+    <template>
+      <style>
+        /* ============ root ============ */
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+          color: #eef2f7;
+        }
+
+        /* ============ ground system (track 0) ============ */
+        .inv-ground {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #0a0d12;
+        }
+        .inv-dots {
+          position: absolute;
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(238, 242, 247, 0.06) 1px, transparent 1px);
+          background-size: 24px 24px;
+        }
+        .inv-cam {
+          position: absolute;
+          inset: 0;
+          transform-origin: 50% 46%;
+          will-change: transform;
+        }
+        .inv-bgimg {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          opacity: 0.5;
+        }
+        .inv-glow {
+          position: absolute;
+          inset: -22%;
+          background: radial-gradient(
+            circle at 32% 38%,
+            rgba(62, 207, 142, 0.06),
+            transparent 52%
+          );
+          will-change: transform;
+        }
+        .inv-vignette {
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(
+            ellipse at 50% 46%,
+            transparent 42%,
+            rgba(0, 0, 0, 0.46) 100%
+          );
+        }
+
+        /* ============ chrome system ============ */
+        .inv-rail {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 2px;
+          background: rgba(238, 242, 247, 0.07);
+        }
+        .inv-rail-fill {
+          width: 100%;
+          height: 100%;
+          background: #3ecf8e;
+          opacity: 0.75;
+          transform-origin: left center;
+        }
+        .inv-kicker {
+          position: absolute;
+          top: 24px;
+          left: 44px;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: #3ecf8e;
+          opacity: 0.6;
+        }
+        .inv-kicker-line {
+          position: absolute;
+          top: 48px;
+          left: 44px;
+          width: 214px;
+          height: 1px;
+          background: rgba(238, 242, 247, 0.25);
+          transform-origin: left center;
+        }
+        .inv-framenum {
+          position: absolute;
+          top: 24px;
+          right: 44px;
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 15px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          color: #eef2f7;
+        }
+
+        /* ============ stat cards ============ */
+        .inv-row {
+          position: absolute;
+          top: 356px;
+          left: 0;
+          right: 0;
+          display: flex;
+          justify-content: center;
+          gap: 36px;
+        }
+        .inv-card {
+          position: relative;
+          width: 430px;
+          height: 252px;
+          box-sizing: border-box;
+          padding: 32px 36px;
+          background: rgba(13, 18, 26, 0.86);
+          border: 1px solid rgba(238, 242, 247, 0.14);
+          will-change: transform, filter, opacity;
+        }
+        .inv-card-label {
+          font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+          font-size: 19px;
+          font-weight: 500;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: rgba(238, 242, 247, 0.55);
+        }
+        .inv-numwrap {
+          margin-top: 16px;
+          height: 112px;
+          display: flex;
+          align-items: flex-end;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          font-variant-numeric: tabular-nums;
+          color: #3ecf8e;
+          font-size: 64px; /* tweened up with the count */
+        }
+        .inv-affix {
+          display: inline-block;
+          color: rgba(238, 242, 247, 0.8);
+        }
+        .inv-bartrack {
+          margin-top: 24px;
+          width: 100%;
+          height: 2px;
+          background: rgba(238, 242, 247, 0.12);
+        }
+        /* width:100% is REQUIRED — a scaleX of a zero-width fill stays invisible */
+        .inv-barfill {
+          width: 100%;
+          height: 100%;
+          background: #3ecf8e;
+          transform-origin: left center;
+        }
+        /* corner ticks — border-built (no CSS transform, keeps GSAP free) */
+        .inv-tick {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+        }
+        .inv-tick-tl { top: -2px; left: -2px; border-top: 2px solid rgba(238, 242, 247, 0.5); border-left: 2px solid rgba(238, 242, 247, 0.5); }
+        .inv-tick-tr { top: -2px; right: -2px; border-top: 2px solid rgba(238, 242, 247, 0.5); border-right: 2px solid rgba(238, 242, 247, 0.5); }
+        .inv-tick-bl { bottom: -2px; left: -2px; border-bottom: 2px solid rgba(238, 242, 247, 0.5); border-left: 2px solid rgba(238, 242, 247, 0.5); }
+        .inv-tick-br { bottom: -2px; right: -2px; border-bottom: 2px solid rgba(238, 242, 247, 0.5); border-right: 2px solid rgba(238, 242, 247, 0.5); }
+
+        /* ============ sub-line ============ */
+        .inv-sub {
+          position: absolute;
+          top: 706px;
+          left: 0;
+          right: 0;
+          text-align: center;
+          font-size: 52px;
+          font-weight: 900;
+          line-height: 1;
+          letter-spacing: -0.02em;
+          text-transform: lowercase;
+          color: rgba(238, 242, 247, 0.9);
+        }
+        .inv-word {
+          display: inline-block;
+          margin: 0 14px;
+          will-change: transform, filter, opacity;
+        }
+        .inv-word-accent {
+          color: #3ecf8e;
+        }
+
+        /* ============ grain (track 2, above content) ============ */
+        .inv-grain {
+          position: absolute;
+          inset: 0;
+          opacity: 0.05;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch' seed='7'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+          background-size: 240px 240px;
+        }
+      </style>
+
+      <div
+        id="root"
+        data-composition-id="04-inventory"
+        data-duration="7.5"
+        data-width="1920"
+        data-height="1080"
+      >
+        <!-- ============ GROUND (track 0, full duration) ============ -->
+        <div
+          id="inv-ground"
+          class="clip inv-ground"
+          data-start="0"
+          data-duration="7.5"
+          data-track-index="0"
+        >
+          <div id="inv-dots" class="inv-dots"></div>
+          <div id="inv-cam" class="inv-cam">
+            <img
+              id="inv-bgimg"
+              class="inv-bgimg"
+              src="assets/view-overview.png"
+              alt=""
+            />
+          </div>
+          <div id="inv-glow" class="inv-glow"></div>
+          <div id="inv-vignette" class="inv-vignette"></div>
+        </div>
+
+        <!-- ============ CONTENT (track 1, full duration) ============ -->
+        <div
+          id="inv-content"
+          class="clip"
+          data-start="0"
+          data-duration="7.5"
+          data-track-index="1"
+          style="position: absolute; inset: 0"
+        >
+          <!-- chrome -->
+          <div id="inv-rail" class="inv-rail">
+            <div id="inv-rail-fill" class="inv-rail-fill"></div>
+          </div>
+          <div id="inv-kicker" class="inv-kicker">/ 04 — INVENTORY</div>
+          <div id="inv-kicker-line" class="inv-kicker-line"></div>
+          <div id="inv-framenum" class="inv-framenum">04</div>
+
+          <!-- stat card row -->
+          <div id="inv-row" class="inv-row">
+            <div id="inv-c1" class="inv-card">
+              <span id="inv-c1-t1" class="inv-tick inv-tick-tl"></span>
+              <span id="inv-c1-t2" class="inv-tick inv-tick-tr"></span>
+              <span id="inv-c1-t3" class="inv-tick inv-tick-bl"></span>
+              <span id="inv-c1-t4" class="inv-tick inv-tick-br"></span>
+              <div id="inv-c1-label" class="inv-card-label">Agents</div>
+              <div id="inv-c1-numwrap" class="inv-numwrap">
+                <span id="inv-c1-num">0</span>
+              </div>
+              <div class="inv-bartrack">
+                <div id="inv-c1-bar" class="inv-barfill"></div>
+              </div>
+            </div>
+
+            <div id="inv-c2" class="inv-card">
+              <span id="inv-c2-t1" class="inv-tick inv-tick-tl"></span>
+              <span id="inv-c2-t2" class="inv-tick inv-tick-tr"></span>
+              <span id="inv-c2-t3" class="inv-tick inv-tick-bl"></span>
+              <span id="inv-c2-t4" class="inv-tick inv-tick-br"></span>
+              <div id="inv-c2-label" class="inv-card-label">Platforms</div>
+              <div id="inv-c2-numwrap" class="inv-numwrap">
+                <span id="inv-c2-num">0</span>
+              </div>
+              <div class="inv-bartrack">
+                <div id="inv-c2-bar" class="inv-barfill"></div>
+              </div>
+            </div>
+
+            <div id="inv-c3" class="inv-card">
+              <span id="inv-c3-t1" class="inv-tick inv-tick-tl"></span>
+              <span id="inv-c3-t2" class="inv-tick inv-tick-tr"></span>
+              <span id="inv-c3-t3" class="inv-tick inv-tick-bl"></span>
+              <span id="inv-c3-t4" class="inv-tick inv-tick-br"></span>
+              <div id="inv-c3-label" class="inv-card-label">Est. 30-Day Spend</div>
+              <div id="inv-c3-numwrap" class="inv-numwrap">
+                <span id="inv-c3-dollar" class="inv-affix">$</span><span
+                  id="inv-c3-num"
+                  >0.0</span
+                ><span id="inv-c3-suffix" class="inv-affix">k</span>
+              </div>
+              <div class="inv-bartrack">
+                <div id="inv-c3-bar" class="inv-barfill"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- sub-line -->
+          <div id="inv-sub" class="inv-sub">
+            <span id="inv-w1" class="inv-word">every agent.</span
+            ><span id="inv-w2" class="inv-word">every platform.</span
+            ><span id="inv-w3" class="inv-word inv-word-accent">every dollar.</span>
+          </div>
+        </div>
+
+        <!-- ============ GRAIN (track 2, above content, static) ============ -->
+        <div
+          id="inv-grain"
+          class="clip inv-grain"
+          data-start="0"
+          data-duration="7.5"
+          data-track-index="2"
+        ></div>
+      </div>
+
+      <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+      <script>
+        window.__timelines = window.__timelines || {};
+        const tl = gsap.timeline({ paused: true });
+
+        /* ---- one tempo grid: 118bpm → beat 0.5085s, bar 2.034s ---- */
+        const B = 0.5085;
+        const CARD_AT = [3 * B, 5 * B, 7 * B]; // 1.5255 / 2.5425 / 3.5595 — Scenes 2–3
+        const COUNT_DELAY = 0.25;
+        const COUNT_DUR = 1.15;
+        const COUNT_EASE = "power3.out";
+
+        /* ============ Scene 1 (0.0–1.5s) — ground resolves + chrome ============ */
+
+        // slow push-in on the real UI, running ALL frame (the one camera move)
+        tl.fromTo(
+          "#inv-cam",
+          { scale: 1 },
+          { scale: 1.065, duration: 7, ease: "none" },
+          0,
+        );
+
+        // background screenshot resolves to its ~50% dim
+        tl.fromTo(
+          "#inv-bgimg",
+          { opacity: 0.34 },
+          { opacity: 0.5, duration: 1.3, ease: "power2.out" },
+          0,
+        );
+
+        // glow field — one very slow off-center drift across the frame
+        tl.fromTo(
+          "#inv-glow",
+          { x: -48, y: 26 },
+          { x: 36, y: -22, duration: 7, ease: "sine.inOut" },
+          0,
+        );
+
+        // progress rail: frame 4 of 9 → fill 3/9 → 4/9 across the full 7s
+        tl.fromTo(
+          "#inv-rail-fill",
+          { scaleX: 3 / 9 },
+          { scaleX: 4 / 9, duration: 7, ease: "none" },
+          0,
+        );
+
+        // kicker mask-wipes in during the first second
+        tl.fromTo(
+          "#inv-kicker",
+          { clipPath: "inset(0 100% 0 0)" },
+          { clipPath: "inset(0 0% 0 0)", duration: 0.65, ease: "power3.out" },
+          0.12,
+        );
+
+        // hairline underline draw beneath the kicker
+        tl.fromTo(
+          "#inv-kicker-line",
+          { scaleX: 0 },
+          { scaleX: 1, duration: 0.5, ease: "power3.out" },
+          0.55,
+        );
+
+        // dim frame number top-right
+        tl.fromTo(
+          "#inv-framenum",
+          { opacity: 0 },
+          { opacity: 0.45, duration: 0.6, ease: "power2.out" },
+          0.3,
+        );
+
+        /* ============ Scenes 2–3 — the three stat cards ============ */
+
+        // per-card entrance: y+blur snap (two properties minimum)
+        function cardIn(sel, at) {
+          tl.fromTo(
+            sel,
+            { y: 44, opacity: 0, filter: "blur(14px)" },
+            {
+              y: 0,
+              opacity: 1,
+              filter: "blur(0px)",
+              duration: 0.55,
+              ease: "power4.out",
+            },
+            at,
+          );
+        }
+        cardIn("#inv-c1", CARD_AT[0]);
+        cardIn("#inv-c2", CARD_AT[1]);
+        cardIn("#inv-c3", CARD_AT[2]);
+
+        // corner ticks brighten in just after each card seats (opacity only —
+        // no transform, so the border-built ticks stay conflict-free)
+        [
+          ["#inv-c1-t1,#inv-c1-t2,#inv-c1-t3,#inv-c1-t4", CARD_AT[0]],
+          ["#inv-c2-t1,#inv-c2-t2,#inv-c2-t3,#inv-c2-t4", CARD_AT[1]],
+          ["#inv-c3-t1,#inv-c3-t2,#inv-c3-t3,#inv-c3-t4", CARD_AT[2]],
+        ].forEach(([sel, at]) => {
+          tl.fromTo(
+            sel,
+            { opacity: 0 },
+            { opacity: 1, duration: 0.25, ease: "power2.out", stagger: 0.06 },
+            at + 0.18,
+          );
+        });
+
+        /* count-up + accent bar-fill land as ONE beat per card:
+           same start, same ease, same duration (stat-bars-and-fills +
+           counting-dynamic-scale — number value and font-size co-driven,
+           onUpdate O(1), tabular-nums in CSS) */
+
+        // card 1 — 146 AGENTS
+        const c1num = document.getElementById("inv-c1-num");
+        const c1wrap = document.getElementById("inv-c1-numwrap");
+        const c1 = { v: 0, fs: 64 };
+        tl.to(
+          c1,
+          {
+            v: 146,
+            fs: 100,
+            duration: COUNT_DUR,
+            ease: COUNT_EASE,
+            onUpdate: () => {
+              c1num.textContent = Math.round(c1.v).toLocaleString("en-US");
+              c1wrap.style.fontSize = c1.fs + "px";
+            },
+          },
+          CARD_AT[0] + COUNT_DELAY,
+        );
+        tl.fromTo(
+          "#inv-c1-bar",
+          { scaleX: 0 },
+          { scaleX: 1, duration: COUNT_DUR, ease: COUNT_EASE },
+          CARD_AT[0] + COUNT_DELAY,
+        );
+
+        // card 2 — 4 PLATFORMS
+        const c2num = document.getElementById("inv-c2-num");
+        const c2wrap = document.getElementById("inv-c2-numwrap");
+        const c2 = { v: 0, fs: 64 };
+        tl.to(
+          c2,
+          {
+            v: 4,
+            fs: 100,
+            duration: COUNT_DUR,
+            ease: COUNT_EASE,
+            onUpdate: () => {
+              c2num.textContent = Math.round(c2.v);
+              c2wrap.style.fontSize = c2.fs + "px";
+            },
+          },
+          CARD_AT[1] + COUNT_DELAY,
+        );
+        tl.fromTo(
+          "#inv-c2-bar",
+          { scaleX: 0 },
+          { scaleX: 1, duration: COUNT_DUR, ease: COUNT_EASE },
+          CARD_AT[1] + COUNT_DELAY,
+        );
+
+        // card 3 — $9.3k EST. 30-DAY SPEND
+        const c3num = document.getElementById("inv-c3-num");
+        const c3wrap = document.getElementById("inv-c3-numwrap");
+        const c3 = { v: 0, fs: 64 };
+        tl.to(
+          c3,
+          {
+            v: 9.3,
+            fs: 100,
+            duration: COUNT_DUR,
+            ease: COUNT_EASE,
+            onUpdate: () => {
+              c3num.textContent = c3.v.toFixed(1);
+              c3wrap.style.fontSize = c3.fs + "px";
+            },
+          },
+          CARD_AT[2] + COUNT_DELAY,
+        );
+        tl.fromTo(
+          "#inv-c3-bar",
+          { scaleX: 0 },
+          { scaleX: 1, duration: COUNT_DUR, ease: COUNT_EASE },
+          CARD_AT[2] + COUNT_DELAY,
+        );
+
+        /* final tick of card 3 (~4.96s): the "$" flashes accent and all three
+           bars pulse ONCE in sync — the row reads as one instrument panel */
+        const FLASH_AT = CARD_AT[2] + COUNT_DELAY + COUNT_DUR;
+
+        tl.to(
+          "#inv-c3-dollar",
+          { color: "#3ecf8e", duration: 0.12, ease: "power2.out" },
+          FLASH_AT,
+        );
+        tl.to(
+          "#inv-c3-dollar",
+          { scale: 1.28, duration: 0.12, ease: "power2.inOut", yoyo: true, repeat: 1 },
+          FLASH_AT,
+        );
+        tl.to(
+          "#inv-c1-bar,#inv-c2-bar,#inv-c3-bar",
+          { scaleY: 2.6, duration: 0.13, ease: "power2.inOut", yoyo: true, repeat: 1 },
+          FLASH_AT + 0.02,
+        );
+
+        /* ============ Scene 4 (5.5–7.0s) — sub-line, per-word on beats ============ */
+        // distinct entrances per word (kinetic-beat-slam: one onset grid,
+        // different transform axis per phrase), then stillness — no exit.
+        tl.fromTo(
+          "#inv-w1",
+          { y: 34, opacity: 0, filter: "blur(10px)" },
+          { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.45, ease: "power4.out" },
+          11 * B, // 5.5935
+        );
+        tl.fromTo(
+          "#inv-w2",
+          { x: -64, opacity: 0 },
+          { x: 0, opacity: 1, duration: 0.4, ease: "expo.out" },
+          12 * B, // 6.102
+        );
+        tl.fromTo(
+          "#inv-w3",
+          { scale: 1.3, opacity: 0, filter: "blur(8px)" },
+          { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.38, ease: "power4.out" },
+          13 * B, // 6.6105
+        );
+
+        window.__timelines["04-inventory"] = tl;
+      </script>
+    </template>
+  </body>
+</html>

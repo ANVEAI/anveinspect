@@ -1,0 +1,470 @@
+<template>
+  <div id="root" data-composition-id="02-problem" data-duration="7.5" data-width="1920" data-height="1080">
+    <style>
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+
+      /* ---------- GROUND SYSTEM (clip layer, never on #root) ---------- */
+      #p2-ground {
+        position: absolute;
+        inset: 0;
+        background: #0a0d12;
+        z-index: 0;
+      }
+      #p2-dotgrid {
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(238, 242, 247, 0.06) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      #p2-glow {
+        position: absolute;
+        left: 780px;
+        top: -420px;
+        width: 1500px;
+        height: 1500px;
+        background: radial-gradient(circle, rgba(62, 207, 142, 0.055) 0%, rgba(62, 207, 142, 0.02) 40%, transparent 65%);
+        will-change: transform;
+      }
+      #p2-vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 70% 62% at 50% 46%, transparent 55%, rgba(0, 0, 0, 0.42) 100%);
+      }
+
+      /* ---------- SCENE 1+2: the lattice ---------- */
+      #p2-lattice {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+      }
+      #p2-latwrap {
+        position: absolute;
+        inset: 0;
+        will-change: transform;
+      }
+      #p2-net {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #p2-chips {
+        position: absolute;
+        left: 360px;
+        top: 330px;
+        width: 1200px;
+        height: 280px;
+        display: grid;
+        grid-template-columns: repeat(3, 360px);
+        grid-auto-rows: 110px;
+        column-gap: 60px;
+        row-gap: 60px;
+      }
+      .chip {
+        position: relative;
+        width: 360px;
+        height: 110px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(238, 242, 247, 0.22);
+        background: rgba(238, 242, 247, 0.03);
+        will-change: transform, filter, opacity;
+      }
+      .chip span {
+        font-family: ui-monospace, monospace;
+        font-size: 25px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(238, 242, 247, 0.88);
+        white-space: nowrap;
+      }
+      .ticks {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+      .ticks path {
+        fill: none;
+        stroke: rgba(238, 242, 247, 0.85);
+        stroke-width: 2;
+        stroke-linecap: square;
+      }
+
+      /* ---------- SCENE 4: the payoff ---------- */
+      #p2-payoff {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+      }
+      #p2-paywrap {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding-bottom: 180px;
+        box-sizing: border-box;
+        will-change: transform;
+      }
+      .payline {
+        font-family: system-ui, sans-serif;
+        font-weight: 900;
+        font-size: 150px;
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        text-transform: lowercase;
+        color: #eef2f7;
+        white-space: nowrap;
+      }
+      .payline .w {
+        display: inline-block;
+        will-change: transform, filter, opacity;
+      }
+      #p2-w2,
+      #p2-w4 {
+        margin-left: 0.24em;
+      }
+      #p2-w3 {
+        position: relative;
+        color: #3ecf8e;
+      }
+      #p2-under {
+        position: absolute;
+        left: 0.04em;
+        right: 0.04em;
+        bottom: -14px;
+        height: 1px;
+        background: #3ecf8e;
+        transform-origin: left center;
+      }
+
+      /* ---------- CHROME SYSTEM ---------- */
+      #p2-chrome {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+      }
+      #p2-rail {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1920px;
+        height: 2px;
+        background: #3ecf8e;
+        opacity: 0.7;
+        transform-origin: left center;
+        will-change: transform;
+      }
+      #p2-kicker {
+        position: absolute;
+        top: 24px;
+        left: 34px;
+        font-family: ui-monospace, monospace;
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(238, 242, 247, 0.5);
+        will-change: transform, clip-path;
+      }
+      #p2-num {
+        position: absolute;
+        top: 22px;
+        right: 34px;
+        font-family: ui-monospace, monospace;
+        font-size: 21px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        color: rgba(238, 242, 247, 1);
+        will-change: transform, opacity;
+      }
+
+      /* ---------- GRAIN (above content, static) ---------- */
+      #p2-grain {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 4;
+        pointer-events: none;
+      }
+    </style>
+
+    <!-- GROUND -->
+    <div id="p2-ground" class="clip" data-start="0" data-duration="7.5" data-track-index="0">
+      <div id="p2-dotgrid"></div>
+      <div id="p2-glow"></div>
+      <div id="p2-vignette"></div>
+    </div>
+
+    <!-- SCENES 1-3: chips + connector tangle (clip gate = the hard cut to black at 4.0s) -->
+    <div id="p2-lattice" class="clip" data-start="0" data-duration="4" data-track-index="1">
+      <div id="p2-latwrap">
+        <svg id="p2-net" viewBox="0 0 1920 1080" preserveAspectRatio="none"></svg>
+        <div id="p2-chips">
+          <div class="chip" id="p2-chip0">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk0a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk0b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk0c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk0d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>claude code</span>
+          </div>
+          <div class="chip" id="p2-chip1">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk1a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk1b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk1c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk1d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>codex</span>
+          </div>
+          <div class="chip" id="p2-chip2">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk2a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk2b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk2c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk2d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>openclaw</span>
+          </div>
+          <div class="chip" id="p2-chip3">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk3a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk3b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk3c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk3d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>hermes</span>
+          </div>
+          <div class="chip" id="p2-chip4">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk4a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk4b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk4c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk4d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>vertex</span>
+          </div>
+          <div class="chip" id="p2-chip5">
+            <svg class="ticks" viewBox="0 0 360 110" preserveAspectRatio="none">
+              <path id="p2-tk5a" d="M 15 1.5 L 1.5 1.5 L 1.5 15" />
+              <path id="p2-tk5b" d="M 345 1.5 L 358.5 1.5 L 358.5 15" />
+              <path id="p2-tk5c" d="M 358.5 95 L 358.5 108.5 L 345 108.5" />
+              <path id="p2-tk5d" d="M 15 108.5 L 1.5 108.5 L 1.5 95" />
+            </svg>
+            <span>cloudflare</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCENE 4: payoff line -->
+    <div id="p2-payoff" class="clip" data-start="4.5" data-duration="3" data-track-index="1">
+      <div id="p2-paywrap">
+        <div class="payline" id="p2-l1"><span class="w" id="p2-w1">six</span><span class="w" id="p2-w2">platforms.</span></div>
+        <div class="payline" id="p2-l2"><span class="w" id="p2-w3">zero<i id="p2-under"></i></span><span class="w" id="p2-w4">visibility.</span></div>
+      </div>
+    </div>
+
+    <!-- CHROME -->
+    <div id="p2-chrome" class="clip" data-start="0" data-duration="7.5" data-track-index="2">
+      <div id="p2-rail"></div>
+      <div id="p2-kicker">/ 02 — THE BLIND SPOT</div>
+      <div id="p2-num">02</div>
+    </div>
+
+    <!-- FILM GRAIN (static, above content) -->
+    <svg id="p2-grain" class="clip" data-start="0" data-duration="7.5" data-track-index="3" viewBox="0 0 1920 1080" preserveAspectRatio="none">
+      <filter id="p2-noise">
+        <feTurbulence type="fractalNoise" baseFrequency="0.82" numOctaves="2" seed="7" stitchTiles="stitch" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0.93  0 0 0 0 0.95  0 0 0 0 0.97  0 0 0 0.055 0" />
+      </filter>
+      <rect id="p2-grainrect" x="0" y="0" width="1920" height="1080" filter="url(#p2-noise)" />
+    </svg>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      /* ---- music grid (118bpm) ---- */
+      var BEAT = 0.5085;
+      var HALF = BEAT / 2;
+
+      /* ---- build the 15 connector lines (deterministic, synchronous) ---- */
+      var CENTERS = [
+        [540, 385],
+        [960, 385],
+        [1380, 385],
+        [540, 555],
+        [960, 555],
+        [1380, 555]
+      ];
+      var pairs = [];
+      var a, b, k;
+      for (a = 0; a < 6; a++) {
+        for (b = a + 1; b < 6; b++) pairs.push([a, b]);
+      }
+      var net = document.getElementById("p2-net");
+      var lines = [];
+      var SVGNS = "http://www.w3.org/2000/svg";
+      for (k = 0; k < 15; k++) {
+        /* deterministic shuffle: gcd(7,15)=1 so (k*7)%15 visits every pair once,
+           making the draw order crisscross instead of sweeping row by row */
+        var p = pairs[(k * 7) % 15];
+        var x1 = CENTERS[p[0]][0],
+          y1 = CENTERS[p[0]][1],
+          x2 = CENTERS[p[1]][0],
+          y2 = CENTERS[p[1]][1];
+        var ln = document.createElementNS(SVGNS, "line");
+        ln.setAttribute("id", "p2-ln" + k);
+        ln.setAttribute("x1", x1);
+        ln.setAttribute("y1", y1);
+        ln.setAttribute("x2", x2);
+        ln.setAttribute("y2", y2);
+        ln.setAttribute("stroke", "#eef2f7");
+        ln.setAttribute("stroke-width", "1");
+        ln.setAttribute("opacity", "0.4");
+        var len = Math.hypot(x2 - x1, y2 - y1);
+        ln.style.strokeDasharray = len;
+        ln.style.strokeDashoffset = len;
+        net.appendChild(ln);
+        lines.push(ln);
+      }
+
+      /* ---- prep tick paths (svg-path-draw: dasharray = measured length) ---- */
+      var tickPaths = document.querySelectorAll("#p2-chips .ticks path");
+      tickPaths.forEach(function (tp) {
+        var tlen = tp.getTotalLength();
+        tp.style.strokeDasharray = tlen;
+        tp.style.strokeDashoffset = tlen;
+      });
+
+      var tl = gsap.timeline({ paused: true });
+
+      /* ================= CHROME (binds the film) ================= */
+      /* progress rail: frame 2 of 9 -> fill animates 1/9 -> 2/9 across all 7s */
+      tl.fromTo("#p2-rail", { scaleX: 1 / 9 }, { scaleX: 2 / 9, duration: 7, ease: "none" }, 0);
+      /* kicker mask-wipes in during the first second (two properties: clip + x) */
+      tl.fromTo(
+        "#p2-kicker",
+        { clipPath: "inset(0 100% 0 0)", x: -14 },
+        { clipPath: "inset(0 0% 0 0)", x: 0, duration: 0.8, ease: "power2.out" },
+        0.1
+      );
+      tl.fromTo(
+        "#p2-num",
+        { opacity: 0, y: -8 },
+        { opacity: 0.3, y: 0, duration: 0.6, ease: "power2.out" },
+        0.2
+      );
+
+      /* ================= GROUND: one very slow glow drift ================= */
+      tl.fromTo("#p2-glow", { x: -30, y: 10 }, { x: 30, y: -10, duration: 7, ease: "sine.inOut" }, 0);
+
+      /* ================= SCENE 1 (0.0-2.0s): chips snap onto the grid ================= */
+      /* macro camera: one slow push-in under the whole lattice shot */
+      tl.fromTo("#p2-latwrap", { scale: 1 }, { scale: 1.045, duration: 4, ease: "none" }, 0);
+
+      var c;
+      for (c = 0; c < 6; c++) {
+        var chipT = 0.2 + c * HALF; /* staggered on the half-beat grid */
+        tl.fromTo(
+          "#p2-chip" + c,
+          { scale: 1.18, opacity: 0, filter: "blur(10px)" },
+          { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.42, ease: "power4.out" },
+          chipT
+        );
+        /* corner-tick draw lands with each chip */
+        var t;
+        var abc = ["a", "b", "c", "d"];
+        for (t = 0; t < 4; t++) {
+          tl.to(
+            "#p2-tk" + c + abc[t],
+            { strokeDashoffset: 0, duration: 0.26, ease: "power2.out" },
+            chipT + 0.16 + t * 0.04
+          );
+        }
+      }
+
+      /* ================= SCENE 2 (2.0-4.0s): connectors try to link everything ================= */
+      tl.fromTo("#p2-net", { opacity: 0.7 }, { opacity: 1, duration: 1.8, ease: "none" }, 2.0);
+      for (k = 0; k < 15; k++) {
+        tl.to(
+          lines[k],
+          { strokeDashoffset: 0, duration: 0.5, ease: "power2.out" },
+          2.0 + k * 0.085
+        );
+      }
+      /* chips dim as the tangle brightens */
+      tl.to("#p2-chips", { opacity: 0.45, duration: 1.2, ease: "power1.inOut" }, 2.6);
+
+      /* two connectors glitch-flicker (deterministic 2-frame opacity stutters) */
+      tl.set(lines[4], { opacity: 0.05 }, 3.3);
+      tl.set(lines[4], { opacity: 0.4 }, 3.38);
+      tl.set(lines[4], { opacity: 0.08 }, 3.46);
+      tl.set(lines[4], { opacity: 0.4 }, 3.54);
+      tl.set(lines[11], { opacity: 0.05 }, 3.58);
+      tl.set(lines[11], { opacity: 0.4 }, 3.66);
+      tl.set(lines[11], { opacity: 0.1 }, 3.74);
+      tl.set(lines[11], { opacity: 0.4 }, 3.82);
+
+      /* SCENE 3 (4.0-4.5s): overload snap — the lattice clip's window ends at 4.0s,
+         so everything hard-cuts to black (ground system only) for one full beat. */
+
+      /* ================= SCENE 4 (4.5-7.0s): the payoff ================= */
+      /* gentle settle drift under the held read */
+      tl.fromTo("#p2-paywrap", { scale: 1 }, { scale: 1.018, duration: 2.5, ease: "none" }, 4.5);
+
+      /* "six platforms." per-word slam — distinct entrances (kinetic-beat-slam) */
+      tl.fromTo(
+        "#p2-w1",
+        { scale: 1.5, opacity: 0, filter: "blur(16px)" },
+        { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.5, ease: "power4.out" },
+        4.56
+      );
+      tl.fromTo(
+        "#p2-w2",
+        { x: -320, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.45, ease: "expo.out" },
+        4.56 + HALF
+      );
+
+      /* "zero visibility." on the next bar — "zero" is the accent payoff */
+      tl.fromTo(
+        "#p2-w3",
+        { scale: 1.4, opacity: 0, filter: "blur(12px)" },
+        { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.5, ease: "power4.out" },
+        4.56 + 2 * BEAT
+      );
+      tl.fromTo(
+        "#p2-w4",
+        { x: 280, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.45, ease: "expo.out" },
+        4.56 + 2 * BEAT + HALF
+      );
+
+      /* accent underline draws left-to-right under "zero", then held read to 7s */
+      tl.fromTo(
+        "#p2-under",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.45, ease: "power3.out" },
+        6.15
+      );
+
+      window.__timelines["02-problem"] = tl;
+    </script>
+  </div>
+</template>

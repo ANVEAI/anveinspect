@@ -1,0 +1,296 @@
+<template>
+  <div id="root" data-composition-id="06-insight" data-duration="6.5" data-width="1920" data-height="1080">
+    <!-- ============ GROUND SYSTEM (track 0) ============ -->
+    <div class="clip" id="in06-bg" data-start="0" data-duration="6.5" data-track-index="0">
+      <div id="in06-base"></div>
+      <div id="in06-dots"></div>
+      <div id="in06-glow"></div>
+      <div id="in06-vignette"></div>
+    </div>
+
+    <!-- ============ CONTENT (track 1) ============ -->
+    <div class="clip" id="in06-content" data-start="0" data-duration="6.5" data-track-index="1">
+      <!-- CHROME SYSTEM (top 60px, dim) -->
+      <div id="in06-rail"></div>
+      <div id="in06-kicker">/ 06 — THE INSIGHT</div>
+      <div id="in06-framenum">06</div>
+
+      <!-- RING INSTRUMENT — center-left (left ~45%) -->
+      <div id="in06-ringwrap">
+        <svg id="in06-ringsvg" viewBox="0 0 560 560" width="560" height="560" xmlns="http://www.w3.org/2000/svg">
+          <circle id="in06-ring-track" cx="280" cy="280" r="276" fill="none"
+                  stroke="rgba(238,242,247,0.14)" stroke-width="1" />
+          <circle id="in06-ring-glowarc" cx="280" cy="280" r="276" fill="none"
+                  stroke="#3ecf8e" stroke-width="12" stroke-linecap="round"
+                  transform="rotate(-90 280 280)" />
+          <circle id="in06-ring-fill" cx="280" cy="280" r="276" fill="none"
+                  stroke="#3ecf8e" stroke-width="4" stroke-linecap="round"
+                  transform="rotate(-90 280 280)" />
+        </svg>
+        <div id="in06-numwrap">
+          <div id="in06-numrow"><span id="in06-num">0</span><span id="in06-pct">%</span></div>
+        </div>
+      </div>
+
+      <!-- TEXT COLUMN — right ~55% -->
+      <div id="in06-col">
+        <div id="in06-lineA">
+          <span class="in06-wa" id="in06-a1">of</span>
+          <span class="in06-wa" id="in06-a2">your</span>
+          <span class="in06-wa" id="in06-a3">agent</span>
+          <span class="in06-wa" id="in06-a4">runs</span>
+        </div>
+        <div id="in06-lineB">
+          <span class="in06-wb" id="in06-b1">are</span>
+          <span class="in06-wb" id="in06-b2">agents</span>
+          <span class="in06-wb" id="in06-b3">spawning</span>
+          <span class="in06-wb" id="in06-b4">agents.</span>
+        </div>
+        <div id="in06-sub">you&rsquo;d never know without the graph.</div>
+      </div>
+    </div>
+
+    <!-- ============ FILM GRAIN (track 2, static, above content) ============ -->
+    <div class="clip" id="in06-grainlayer" data-start="0" data-duration="6.5" data-track-index="2">
+      <svg id="in06-grainsvg" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <filter id="in06-noise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" seed="7" />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect width="100%" height="100%" filter="url(#in06-noise)" opacity="0.05" />
+      </svg>
+    </div>
+  </div>
+
+  <style>
+    #root {
+      position: relative;
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+    }
+
+    /* ---- ground system ---- */
+    #in06-bg { position: absolute; inset: 0; }
+    #in06-base { position: absolute; inset: 0; background: #0a0d12; }
+    #in06-dots {
+      position: absolute; inset: 0;
+      background-image: radial-gradient(rgba(238, 242, 247, 0.06) 1px, transparent 1px);
+      background-size: 24px 24px;
+    }
+    #in06-glow {
+      position: absolute;
+      left: -260px; top: -60px;
+      width: 1300px; height: 1300px;
+      background: radial-gradient(closest-side, rgba(62, 207, 142, 0.055), transparent 72%);
+    }
+    #in06-vignette {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(0, 0, 0, 0.42) 100%);
+    }
+
+    /* ---- content layer ---- */
+    #in06-content { position: absolute; inset: 0; }
+
+    /* chrome system — all in top 60px, ~45% dim */
+    #in06-rail {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 2px;
+      background: #3ecf8e;
+      opacity: 0.55;
+      transform-origin: left center;
+    }
+    #in06-kicker {
+      position: absolute; top: 24px; left: 48px;
+      font-family: ui-monospace, monospace;
+      font-size: 20px; font-weight: 500;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: rgba(238, 242, 247, 0.45);
+      white-space: nowrap;
+    }
+    #in06-framenum {
+      position: absolute; top: 24px; right: 48px;
+      font-family: ui-monospace, monospace;
+      font-size: 20px; font-weight: 500;
+      letter-spacing: 0.14em;
+      color: rgba(238, 242, 247, 0.28);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ring instrument — 560px, center-left; bottom edge 780 < 900 keep-out */
+    #in06-ringwrap {
+      position: absolute;
+      left: 180px; top: 220px;
+      width: 560px; height: 560px;
+    }
+    #in06-ringsvg { position: absolute; inset: 0; display: block; }
+    #in06-ring-glowarc { filter: blur(10px); opacity: 0; }
+    #in06-numwrap {
+      position: absolute; inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* flex centering, not transform centering (no gsap transform conflict) */
+    }
+    #in06-numrow {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+    }
+    #in06-num {
+      font-family: system-ui, sans-serif;
+      font-weight: 900;
+      font-size: 170px; /* GSAP grows this to 300px with the value */
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: #3ecf8e;
+      font-variant-numeric: tabular-nums;
+    }
+    #in06-pct {
+      font-family: system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 118px;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #3ecf8e;
+      margin-left: 8px;
+    }
+
+    /* text column — right 55%; width 880px, every line computed to fit */
+    #in06-col {
+      position: absolute;
+      left: 940px; top: 366px;
+      width: 880px;
+      display: flex;
+      flex-direction: column;
+    }
+    /* "of your agent runs" = 18 ch x 0.602 x 72px = 780px <= 880 */
+    #in06-lineA {
+      font-family: ui-monospace, monospace;
+      font-size: 72px; font-weight: 500;
+      line-height: 1.15;
+      color: #eef2f7;
+      white-space: nowrap;
+    }
+    /* "are agents spawning agents." = 27 ch x 0.602 x 52px = 846px <= 880 */
+    #in06-lineB {
+      margin-top: 34px;
+      font-family: ui-monospace, monospace;
+      font-size: 52px; font-weight: 500;
+      line-height: 1.2;
+      color: #eef2f7;
+      white-space: nowrap;
+    }
+    /* "you'd never know without the graph." = 35 ch x 0.602 x 34px = 717px <= 880 */
+    #in06-sub {
+      margin-top: 52px;
+      font-family: ui-monospace, monospace;
+      font-size: 34px; font-weight: 400;
+      line-height: 1.4;
+      color: rgba(238, 242, 247, 0.5);
+      white-space: nowrap;
+      opacity: 0;
+    }
+    .in06-wa, .in06-wb {
+      display: inline-block;
+      will-change: transform, filter, opacity;
+    }
+
+    /* grain */
+    #in06-grainlayer { position: absolute; inset: 0; pointer-events: none; }
+    #in06-grainsvg { position: absolute; inset: 0; display: block; }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+
+    /* ---- ring: measured circumference (svg-path-draw / stat-bars-and-fills ring form) ---- */
+    const ringFill = document.getElementById("in06-ring-fill");
+    const ringGlowArc = document.getElementById("in06-ring-glowarc");
+    const LEN = ringFill.getTotalLength();
+    ringFill.style.strokeDasharray = `${LEN}`;
+    ringFill.style.strokeDashoffset = `${LEN}`; /* empty at t=0 */
+    /* shimmer arc holds the ring's FINAL 288-degree geometry statically (revealed by opacity only) */
+    ringGlowArc.style.strokeDasharray = `${LEN}`;
+    ringGlowArc.style.strokeDashoffset = `${LEN * 0.2}`;
+
+    /* =================== CHROME (0.0s -> full frame) =================== */
+    /* progress rail: frame 6 of 9 -> fill 5/9 -> 6/9 linearly across all 6s */
+    tl.fromTo("#in06-rail",
+      { scaleX: 5 / 9 },
+      { scaleX: 6 / 9, duration: 6, ease: "none" },
+      0);
+    /* kicker mask-wipes in during the first second */
+    tl.fromTo("#in06-kicker",
+      { clipPath: "inset(0 100% 0 0)", opacity: 0.9 },
+      { clipPath: "inset(0 0% 0 0)", opacity: 1, duration: 0.7, ease: "power3.out" },
+      0.1);
+    tl.fromTo("#in06-framenum",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.6, ease: "power2.out" },
+      0.2);
+
+    /* ground: one very slow glow drift under everything (single finite pass) */
+    tl.fromTo("#in06-glow",
+      { scale: 1 },
+      { scale: 1.07, duration: 6, ease: "sine.inOut" },
+      0);
+
+    /* =================== SCENE 1 (0.0 - 1.8s): ring sweep + count-up =================== */
+    /* dim 1px track fades up first */
+    tl.fromTo("#in06-ring-track",
+      { opacity: 0 },
+      { opacity: 1, duration: 0.4, ease: "power2.out" },
+      0.05);
+    /* the sweep: strokeDashoffset LEN -> LEN*0.2 == exactly 288 degrees (80%) */
+    tl.to(ringFill,
+      { strokeDashoffset: LEN * 0.2, duration: 1.65, ease: "power3.out" },
+      0.15);
+    /* count-up with dynamic scale — value AND font-size in ONE tween, same ease as the ring
+       so number + ring land as one beat (counting-dynamic-scale) */
+    const numEl = document.getElementById("in06-num");
+    const numState = { v: 0, fs: 170 };
+    tl.to(numState,
+      {
+        v: 80, fs: 300, duration: 1.65, ease: "power3.out",
+        onUpdate: () => {
+          numEl.textContent = Math.round(numState.v);
+          numEl.style.fontSize = `${numState.fs}px`;
+        }
+      },
+      0.15);
+    /* "%" suffix arrives as the count lands (no overshoot — reserved for frame 3) */
+    tl.fromTo("#in06-pct",
+      { opacity: 0, y: 26 },
+      { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" },
+      1.55);
+
+    /* =================== SCENE 2 (1.8 - 3.2s): "of your agent runs" =================== */
+    /* per-word y+blur rise (two properties minimum) */
+    tl.fromTo(".in06-wa",
+      { y: 44, opacity: 0, filter: "blur(12px)" },
+      { y: 0, opacity: 1, filter: "blur(0px)", duration: 0.6, ease: "power3.out", stagger: 0.18 },
+      1.85);
+
+    /* =================== SCENE 3 (3.2 - 4.6s): "are agents spawning agents." =================== */
+    /* x-snap per word, expo (kinetic-beat-slam side-snap entrance) */
+    tl.fromTo(".in06-wb",
+      { x: -72, opacity: 0 },
+      { x: 0, opacity: 1, duration: 0.45, ease: "expo.out", stagger: 0.16 },
+      3.25);
+
+    /* =================== SCENE 4 (4.6 - 6.0s): sub-line + HELD READ =================== */
+    tl.fromTo("#in06-sub",
+      { opacity: 0, y: 18 },
+      { opacity: 1, y: 0, duration: 0.7, ease: "power2.out" },
+      4.65);
+    /* ring stroke shimmer — ONE finite low-amplitude pass, then stillness (no exit) */
+    tl.to(ringGlowArc,
+      { opacity: 0.38, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 1 },
+      4.9);
+
+    window.__timelines["06-insight"] = tl;
+  </script>
+</template>

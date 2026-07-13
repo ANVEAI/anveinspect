@@ -1,0 +1,428 @@
+<template>
+  <div id="root" data-composition-id="08-zeroinstall" data-duration="6.5" data-width="1920" data-height="1080">
+    <style>
+      /* ============ frame root ============ */
+      #root {
+        position: relative;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+      }
+      #root * { box-sizing: border-box; }
+
+      /* ============ THE GROUND SYSTEM (track 0) ============ */
+      .zi8-clip {
+        position: absolute;
+        inset: 0;
+      }
+      #zi8-base {
+        position: absolute;
+        inset: 0;
+        background: #0a0d12;
+      }
+      #zi8-dots {
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(rgba(238, 242, 247, 0.06) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+      #zi8-glow {
+        position: absolute;
+        left: 20%;
+        top: -18%;
+        width: 1200px;
+        height: 900px;
+        background: radial-gradient(ellipse closest-side, rgba(62, 207, 142, 0.055), rgba(62, 207, 142, 0) 68%);
+        will-change: transform;
+      }
+      #zi8-vignette {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse at 50% 46%, rgba(0, 0, 0, 0) 52%, rgba(0, 0, 0, 0.38) 100%);
+      }
+
+      /* ============ background log column (track 1) ============ */
+      #zi8-log {
+        position: absolute;
+        left: 57%;
+        top: 44px;
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+        opacity: 0.08;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 19px;
+        letter-spacing: 0.02em;
+        color: #eef2f7;
+        white-space: nowrap;
+        will-change: transform;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 72%, transparent 92%);
+        mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 72%, transparent 92%);
+      }
+      .zi8-logline { line-height: 1.4; }
+
+      /* ============ content (track 2) ============ */
+      /* --- Scene 1: full-screen beats --- */
+      #zi8-beats {
+        position: absolute;
+        inset: 0 0 180px 0; /* optical center sits high of true center, well above keep-out */
+      }
+      .zi8-beat {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 152px;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        line-height: 0.95;
+        color: #eef2f7;
+        will-change: transform, opacity, filter;
+      }
+      #zi8-beat2, #zi8-beat3 { opacity: 0; }
+
+      /* --- Scenes 2+3: 40/60 split --- */
+      #zi8-split {
+        position: absolute;
+        left: 10%;
+        right: 9%;
+        top: 320px;
+        height: 460px; /* 320..780, comfortably above y=900 keep-out */
+        display: flex;
+        align-items: stretch;
+      }
+      #zi8-checklist {
+        width: 40%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: 42px;
+        opacity: 0;
+        transform-origin: 50% 50%;
+        will-change: transform, opacity;
+      }
+      .zi8-row {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        opacity: 0.4;
+        will-change: opacity;
+      }
+      .zi8-tick {
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+      }
+      .zi8-tick path {
+        fill: none;
+        stroke: #3ecf8e;
+        stroke-width: 3.2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .zi8-rowtext {
+        font-size: 52px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #eef2f7;
+      }
+      #zi8-divider {
+        width: 1px;
+        margin: 30px 4.5% 30px 5%;
+        background: rgba(238, 242, 247, 0.16);
+        transform-origin: 50% 0%;
+        opacity: 0;
+        will-change: transform, opacity;
+      }
+      #zi8-right {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+      #zi8-typewrap {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 33px;
+        line-height: 1.7;
+        color: rgba(238, 242, 247, 0.88);
+        min-height: 120px;
+      }
+      #zi8-caret {
+        display: inline-block;
+        width: 0.55em;
+        height: 1.05em;
+        margin-left: 6px;
+        vertical-align: text-bottom;
+        background: #3ecf8e;
+        opacity: 0;
+      }
+
+      /* ============ THE CHROME SYSTEM (track 3) ============ */
+      #zi8-rail {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: #3ecf8e;
+        opacity: 0.85;
+        transform-origin: 0% 50%;
+        will-change: transform;
+      }
+      #zi8-kickwrap {
+        position: absolute;
+        top: 22px;
+        left: 48px;
+        overflow: hidden;
+      }
+      #zi8-kicker {
+        display: inline-block;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(238, 242, 247, 0.45);
+        will-change: transform;
+      }
+      #zi8-kicker b {
+        font-weight: 500;
+        color: rgba(62, 207, 142, 0.55);
+      }
+      #zi8-num {
+        position: absolute;
+        top: 22px;
+        right: 48px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 19px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        color: #eef2f7;
+        opacity: 0;
+        will-change: opacity;
+      }
+
+      /* ============ film grain (track 4, static) ============ */
+      #zi8-grain {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0.05;
+        pointer-events: none;
+      }
+    </style>
+
+    <!-- ============ GROUND (track 0) ============ -->
+    <div id="zi8-ground" class="clip zi8-clip" data-start="0" data-duration="6.5" data-track-index="0">
+      <div id="zi8-base"></div>
+      <div id="zi8-dots"></div>
+      <div id="zi8-glow"></div>
+      <div id="zi8-vignette"></div>
+    </div>
+
+    <!-- ============ LOG COLUMN (track 1) ============ -->
+    <div id="zi8-logclip" class="clip zi8-clip" data-start="0" data-duration="6.5" data-track-index="1">
+      <div id="zi8-log">
+        <div class="zi8-logline" id="zi8-ll01">~/.claude/projects/voice-forms/session-3f2a.jsonl</div>
+        <div class="zi8-logline" id="zi8-ll02">scan: 1,512 runs ingested</div>
+        <div class="zi8-logline" id="zi8-ll03">spawn edge voice-forms &#8594; workflow-subagent</div>
+        <div class="zi8-logline" id="zi8-ll04">tokens: 21.4M across relationship</div>
+        <div class="zi8-logline" id="zi8-ll05">~/.claude/projects/anveinspect/session-9c41.jsonl</div>
+        <div class="zi8-logline" id="zi8-ll06">agents: 146 discovered &#183; 4 platforms</div>
+        <div class="zi8-logline" id="zi8-ll07">edge weight 1,061&#215; &#183; workflow-subagent</div>
+        <div class="zi8-logline" id="zi8-ll08">spawn edge voice-forms &#8594; seo-specialist 94&#215;</div>
+        <div class="zi8-logline" id="zi8-ll09">est. 30-day spend: $9.3k</div>
+        <div class="zi8-logline" id="zi8-ll10">lineage: 22 agents &#183; 21 relationships</div>
+        <div class="zi8-logline" id="zi8-ll11">schedule: nightly-agent daily 03:00</div>
+        <div class="zi8-logline" id="zi8-ll12">spawn edge voice-forms &#8594; content-creator 82&#215;</div>
+        <div class="zi8-logline" id="zi8-ll13">parse: no SDK hooks detected</div>
+        <div class="zi8-logline" id="zi8-ll14">read-only: logs already on disk</div>
+      </div>
+    </div>
+
+    <!-- ============ CONTENT (track 2) ============ -->
+    <div id="zi8-content" class="clip zi8-clip" data-start="0" data-duration="6.5" data-track-index="2">
+      <!-- Scene 1: three full-screen beats -->
+      <div id="zi8-beats">
+        <div class="zi8-beat" id="zi8-beat1">no SDK.</div>
+        <div class="zi8-beat" id="zi8-beat2">no API keys.</div>
+        <div class="zi8-beat" id="zi8-beat3">no code changes.</div>
+      </div>
+
+      <!-- Scenes 2+3: checklist | divider | typed one-liner -->
+      <div id="zi8-split">
+        <div id="zi8-checklist">
+          <div class="zi8-row" id="zi8-row1">
+            <svg class="zi8-tick" id="zi8-tick1" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+              <path id="zi8-tickpath1" d="M4 14 L10.5 20.5 L22 6" />
+            </svg>
+            <div class="zi8-rowtext" id="zi8-rowtext1">no SDK</div>
+          </div>
+          <div class="zi8-row" id="zi8-row2">
+            <svg class="zi8-tick" id="zi8-tick2" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+              <path id="zi8-tickpath2" d="M4 14 L10.5 20.5 L22 6" />
+            </svg>
+            <div class="zi8-rowtext" id="zi8-rowtext2">no API keys</div>
+          </div>
+          <div class="zi8-row" id="zi8-row3">
+            <svg class="zi8-tick" id="zi8-tick3" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg">
+              <path id="zi8-tickpath3" d="M4 14 L10.5 20.5 L22 6" />
+            </svg>
+            <div class="zi8-rowtext" id="zi8-rowtext3">no code changes</div>
+          </div>
+        </div>
+        <div id="zi8-divider"></div>
+        <div id="zi8-right">
+          <div id="zi8-typewrap"><span id="zi8-typed"></span><span id="zi8-caret"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CHROME (track 3) ============ -->
+    <div id="zi8-chrome" class="clip zi8-clip" data-start="0" data-duration="6.5" data-track-index="3">
+      <div id="zi8-rail"></div>
+      <div id="zi8-kickwrap">
+        <span id="zi8-kicker"><b>/</b> 08 &#8212; ZERO INSTRUMENTATION</span>
+      </div>
+      <div id="zi8-num">08</div>
+    </div>
+
+    <!-- ============ FILM GRAIN (track 4, static) ============ -->
+    <div id="zi8-grainclip" class="clip zi8-clip" data-start="0" data-duration="6.5" data-track-index="4">
+      <svg id="zi8-grain" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+        <filter id="zi8-noise">
+          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" seed="11" stitchTiles="stitch" />
+          <feColorMatrix type="saturate" values="0" />
+        </filter>
+        <rect id="zi8-grainrect" x="0" y="0" width="100%" height="100%" filter="url(#zi8-noise)" />
+      </svg>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      /* ---- the 118bpm grid: every onset reads from this ---- */
+      const BEAT = 0.5085; /* seconds per beat @118bpm */
+      const B1 = 0.20;            /* beat 1 slam        */
+      const B2 = BEAT * 2;        /* 1.017 — beat 2     */
+      const B3 = BEAT * 4;        /* 2.034 — beat 3     */
+      const SWAP = BEAT * 6;      /* 3.051 — scale-swap */
+      const TICKS = [3.60, 3.95, 4.30];
+      const SPLIT = BEAT * 9;     /* 4.5765 — divider   */
+      const TYPE_AT = 4.70;
+
+      /* ---- svg tick self-draw prep (measured, not guessed) ---- */
+      const zi8TickPaths = [
+        document.getElementById("zi8-tickpath1"),
+        document.getElementById("zi8-tickpath2"),
+        document.getElementById("zi8-tickpath3"),
+      ];
+      zi8TickPaths.forEach((p) => {
+        const len = p.getTotalLength();
+        p.style.strokeDasharray = `${len}`;
+        p.style.strokeDashoffset = `${len}`;
+      });
+
+      const tl = gsap.timeline({ paused: true });
+
+      /* ================= chrome (binds the film) ================= */
+      /* progress rail: frame 8 of 9 — fill 7/9 -> 8/9 across the full 6s */
+      tl.fromTo("#zi8-rail", { scaleX: 7 / 9 }, { scaleX: 8 / 9, duration: 6, ease: "none" }, 0);
+      /* kicker mask-wipes in during the first second */
+      tl.fromTo("#zi8-kicker", { xPercent: -104 }, { xPercent: 0, duration: 0.55, ease: "power3.out" }, 0.12);
+      tl.fromTo("#zi8-num", { opacity: 0 }, { opacity: 0.35, duration: 0.5, ease: "power2.out" }, 0.25);
+
+      /* ================= ground: one slow glow drift ================= */
+      tl.fromTo("#zi8-glow", { x: -34, y: -10 }, { x: 34, y: 16, duration: 6, ease: "sine.inOut" }, 0);
+
+      /* ===== log column: one long deterministic upward drift (~4px/s) ===== */
+      tl.fromTo("#zi8-log", { y: 12 }, { y: -14, duration: 6, ease: "none" }, 0);
+
+      /* ================= Scene 1 (0–3s): beat slams ================= */
+      /* distinct entrances per beat (kinetic-beat-slam): scale-blur / x-snap / rise-rotate */
+      tl.fromTo(
+        "#zi8-beat1",
+        { scale: 1.55, opacity: 0, filter: "blur(18px)" },
+        { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.45, ease: "power4.out" },
+        B1,
+      );
+      /* hard-cut replace on the next bar line */
+      tl.set("#zi8-beat1", { opacity: 0 }, B2);
+      tl.fromTo(
+        "#zi8-beat2",
+        { x: -360, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.4, ease: "expo.out" },
+        B2,
+      );
+      tl.set("#zi8-beat2", { opacity: 0 }, B3);
+      tl.fromTo(
+        "#zi8-beat3",
+        { y: 110, rotation: 5, opacity: 0 },
+        { y: 0, rotation: 0, opacity: 1, duration: 0.5, ease: "circ.out" },
+        B3,
+      );
+
+      /* ============ Scene 2 (3.0–4.5s): scale-swap into the checklist ============ */
+      /* outgoing rushes away (power2.in), incoming arrives with weight (back.out) */
+      tl.to("#zi8-beat3", { scale: 0.72, opacity: 0, duration: 0.32, ease: "power2.in" }, SWAP);
+      tl.fromTo(
+        "#zi8-checklist",
+        { scale: 0.72, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.6)" },
+        SWAP + 0.32 - 0.15,
+      );
+      /* three accent ticks self-draw, staggered; each row brightens as its tick completes */
+      zi8TickPaths.forEach((p, i) => {
+        tl.to(p, { strokeDashoffset: 0, duration: 0.3, ease: "power2.out" }, TICKS[i]);
+        tl.to("#zi8-row" + (i + 1), { opacity: 1, duration: 0.3, ease: "power2.out" }, TICKS[i] + 0.15);
+      });
+
+      /* ============ Scene 3 (4.5–6.0s): divider + typed one-liner ============ */
+      tl.fromTo(
+        "#zi8-divider",
+        { scaleY: 0, opacity: 0 },
+        { scaleY: 1, opacity: 1, duration: 0.35, ease: "power3.out" },
+        SPLIT,
+      );
+
+      /* typewriter — smooth per-char slice, deterministic */
+      const zi8Line = "it reads the logs your agents already write.";
+      const zi8TypedEl = document.getElementById("zi8-typed");
+      const zi8Len = { v: 0 };
+      tl.to(
+        zi8Len,
+        {
+          v: zi8Line.length,
+          duration: 1.0,
+          ease: "power1.inOut",
+          onUpdate: () => {
+            zi8TypedEl.textContent = zi8Line.substring(0, Math.floor(zi8Len.v));
+          },
+        },
+        TYPE_AT,
+      );
+
+      /* block caret — deterministic sin blink (no CSS animation, no repeat) */
+      const zi8CaretEl = document.getElementById("zi8-caret");
+      const zi8Blink = { p: 0 };
+      tl.to(
+        zi8Blink,
+        {
+          p: Math.PI * 2 * 2,
+          duration: 6 - (SPLIT + 0.1),
+          ease: "none",
+          onUpdate: () => {
+            zi8CaretEl.style.opacity = Math.sin(zi8Blink.p + 0.4) > 0 ? "1" : "0.15";
+          },
+        },
+        SPLIT + 0.1,
+      );
+
+      window.__timelines["08-zeroinstall"] = tl;
+    </script>
+  </div>
+</template>
