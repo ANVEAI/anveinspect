@@ -32,3 +32,7 @@ videos/**/snapshots/
 videos/**/.hyperframes/
 videos/**/.media/
 *.mp4
+
+# marketing/sales collateral — not open-source product code; may contain
+# confidential internal decks (never publish this tree)
+sales-deck/

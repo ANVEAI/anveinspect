@@ -8,12 +8,22 @@
 **See every AI agent you run — what it costs, who spawned what, and get paged
 when one silently stops.**
 
+The open-source core powering **[ThoughtShieldAI](https://thoughtshieldai.com)** —
+the AI control plane for enterprise Agentic AI. Everything in this repo is real,
+shipped, and MIT-licensed; nothing here is a mockup.
+
 Teams now run dozens of coding agents across Claude Code, Codex, OpenClaw,
 Hermes, and their clouds — and nobody can answer "what's running, why, and what
 did it cost?" AnveInspect answers it with **zero instrumentation**: it reads the
 logs your agents already write and reuses the platform CLIs you're already
 signed into. One dashboard, one CLI, and an MCP server so Claude itself can
 operate the fleet.
+
+<p align="center">
+  <img src="docs/assets/dashboard-overview.jpg" alt="AnveInspect dashboard — fleet overview" width="49%">
+  <img src="docs/assets/dashboard-lineage.jpg" alt="AnveInspect dashboard — agent lineage graph" width="49%">
+</p>
+<p align="center"><sub>Sample fleet shown — illustrative data, not a real customer's.</sub></p>
 
 ```bash
 git clone <repo> && cd anveinspect && npm install   # npm publish pending — then just: npx anveinspect
@@ -173,7 +183,7 @@ One shared query layer feeds CLI, MCP, and dashboard — identical numbers every
 
 ```bash
 npm install
-npm test          # 100 tests (unit, e2e, fuzz, scale, adapters, cadence/DST, dashboard)
+npm test          # unit, e2e, fuzz, scale, adapters, cadence/DST, dashboard — see the CI badge above
 npm run typecheck # 0 errors
 npm run dash      # dashboard at http://localhost:4177
 ```
