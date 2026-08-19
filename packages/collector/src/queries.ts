@@ -205,6 +205,7 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
   // a `partial` total is an undercount and must never be presented as exact.
   const rates = loadRates();
   const modelRuns = new Map<string, number>();
+  const unpriced = new Map<string, { runs: number; tokens: number }>();
   let usd = 0;
   let pricedRuns = 0;
   let partialRuns = 0;
@@ -217,6 +218,13 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
     if (t !== null) tokensTotal = (tokensTotal ?? 0) + t;
     const blob = safeParse<Record<string, any> | null>(r.tokens_by_model, null);
     if (!blob) continue;
+    for (const [m, v] of Object.entries(blob)) {
+      if (rates[m]) continue;
+      const u = unpriced.get(m) ?? { runs: 0, tokens: 0 };
+      u.runs += 1;
+      u.tokens += ((v as any)?.input ?? 0) + ((v as any)?.output ?? 0);
+      unpriced.set(m, u);
+    }
     const c = costOf(blob as any, rates);
     if (!c.priced) continue;
     usd += c.usd;
@@ -247,6 +255,9 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
       partialRuns, // > 0 means usd is an undercount
       unpricedRuns: windowRuns.length - pricedRuns,
       ratesSource: process.env.ANVEINSPECT_PRICING ? 'custom' : 'default',
+      unpricedModels: [...unpriced.entries()]
+        .sort((a, b) => b[1].tokens - a[1].tokens)
+        .map(([model, u]) => ({ model, ...u })),
     },
     models: [...modelRuns.entries()].sort((a, b) => b[1] - a[1]).map(([model, runs]) => ({ model, runs })),
     toolCalls: [...toolTally.entries()].sort((a, b) => b[1] - a[1]).map(([name, calls]) => ({ name, calls })),

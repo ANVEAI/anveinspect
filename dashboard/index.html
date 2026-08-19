@@ -361,7 +361,7 @@ function renderOverview(page){
   kpis.appendChild(kpiTile('Stale agents', p.stale, p.stale?'quiet >7 days':'none', p.stale?'warn':''));
   const cost=ANALYTICS?ANALYTICS.estimatedCostUsd:null;
   kpis.appendChild(kpiTile('Est. cost · 30d', cost==null?'—':fmtUsd(cost),
-    ANALYTICS?`${ANALYTICS.ratesSource} rates · ${ANALYTICS.tokenlessRuns} runs unpriced`:'estimated'));
+    ANALYTICS?`${ANALYTICS.ratesSource} rates · ${ANALYTICS.unpricedRuns} runs unrated · ${ANALYTICS.tokenlessRuns} without tokens`:'estimated'));
   page.appendChild(kpis);
 
   // Trend + platform breakdown
@@ -1205,6 +1205,7 @@ function costSection(d){
   const caveat=[];
   if(c.unpricedRuns) caveat.push(`${c.unpricedRuns} run${c.unpricedRuns===1?'':'s'} unpriced`);
   if(c.partialRuns)  caveat.push(`${c.partialRuns} partially priced`);
+  const missing=(c.unpricedModels||[]).map(m=>`${m.model} (${m.runs} run${m.runs===1?'':'s'}, ${fmt(m.tokens)} tok)`).join(', ');
   const models=(d.models||[]).map(m=>`<div class="dw-run"><span class="ts mono">${esc(m.model)}</span><span class="tk">${m.runs} run${m.runs===1?'':'s'}</span></div>`).join('');
   return `<div class="dw-sec">Cost · last ${d.windowDays}d</div>
     <div class="dw-stats">
@@ -1212,7 +1213,7 @@ function costSection(d){
       <div class="dw-stat"><div class="l">Tokens</div><div class="v">${d.tokensTotal==null?'—':fmt(d.tokensTotal)}</div></div>
       <div class="dw-stat"><div class="l">Runs priced</div><div class="v">${c.pricedRuns}/${d.windowRunCount}</div></div>
     </div>
-    ${caveat.length?`<div class="dw-cad" style="color:var(--amber)">Undercount — ${caveat.join(', ')}. Unrated models contribute nothing to the total.</div>`:''}
+    ${caveat.length?`<div class="dw-cad" style="color:var(--amber)">Undercount — ${caveat.join(', ')}. Unrated models contribute nothing to the total.${missing?`<br>No rate for: <span class="mono">${esc(missing)}</span>. Add them to <span class="mono">~/.anveinspect/pricing.json</span>.`:''}</div>`:''}
     ${models?`<div class="dw-runs">${models}</div>`:''}`;
 }
 

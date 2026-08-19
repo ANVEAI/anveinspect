@@ -23,6 +23,8 @@ export interface FleetAnalytics {
   whyRunning: { trigger: string; runs: number }[]; // "why running": runs grouped by trigger source
   failureBursts: { agent: string; failures: number; windowStart: string }[];
   ratesSource: 'default' | 'custom';
+  /** Models seen in the window that have no rate — what to add to pricing.json. */
+  unpricedModels: { model: string; runs: number; tokens: number }[];
 }
 
 const DAY = 86_400_000;
@@ -41,6 +43,7 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
   let estimatedCostUsd = 0;
   let pricedRuns = 0;
   let unpricedRuns = 0;
+  const unpricedModels = new Map<string, { runs: number; tokens: number }>();
   let partiallyPricedRuns = 0;
   let tokenlessRuns = 0;
   const costByModel = new Map<string, { usd: number; tokens: number }>();
@@ -63,6 +66,13 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
     }
     const tbm = r.tokens_by_model === null ? null : safeParse(r.tokens_by_model);
     if (!tbm) { tokenlessRuns++; continue; }
+    for (const [m, v] of Object.entries(tbm) as any[]) {
+      if (rates[m]) continue; // rated — nothing to report
+      const u = unpricedModels.get(m) ?? { runs: 0, tokens: 0 };
+      u.runs += 1;
+      u.tokens += (v?.input ?? 0) + (v?.output ?? 0);
+      unpricedModels.set(m, u);
+    }
     const { usd, priced, partial } = costOf(tbm, rates);
     if (!priced) { unpricedRuns++; continue; }
     pricedRuns++;
@@ -100,6 +110,9 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
     estimatedCostUsd,
     pricedRuns,
     unpricedRuns,
+    unpricedModels: [...unpricedModels.entries()]
+      .sort((a, b) => b[1].tokens - a[1].tokens)
+      .map(([model, u]) => ({ model, ...u })),
     partiallyPricedRuns,
     tokenlessRuns,
     costByModel: [...costByModel.entries()].map(([model, v]) => ({ model, ...v })).sort((a, b) => b.usd - a.usd),
