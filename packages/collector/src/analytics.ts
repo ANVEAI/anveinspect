@@ -18,7 +18,7 @@ export interface FleetAnalytics {
   tokenlessRuns: number;     // runs with no token data at all (unavailable)
   costByModel: { model: string; usd: number; tokens: number }[];
   costByVendor: { vendor: string; usd: number }[];
-  topCostAgents: { name: string; vendor: string; usd: number; runs: number }[];
+  topCostAgents: { fingerprint: string; name: string; vendor: string; usd: number; runs: number }[];
   busiestHours: { hour: number; runs: number }[]; // 0-23 local
   whyRunning: { trigger: string; runs: number }[]; // "why running": runs grouped by trigger source
   failureBursts: { agent: string; failures: number; windowStart: string }[];
@@ -45,7 +45,7 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
   let tokenlessRuns = 0;
   const costByModel = new Map<string, { usd: number; tokens: number }>();
   const costByVendor = new Map<string, number>();
-  const costByAgent = new Map<string, { name: string; vendor: string; usd: number; runs: number }>();
+  const costByAgent = new Map<string, { fingerprint: string; name: string; vendor: string; usd: number; runs: number }>();
   const hourHist = new Array(24).fill(0);
   const triggerHist = new Map<string, number>();
   const failuresByAgent = new Map<string, { name: string; times: number[] }>();
@@ -69,7 +69,7 @@ export function computeAnalytics(db: Database.Database, now = new Date()): Fleet
     if (partial) partiallyPricedRuns++; // some model in this run had no rate — usd undercounts
     estimatedCostUsd += usd;
     costByVendor.set(r.vendor, (costByVendor.get(r.vendor) ?? 0) + usd);
-    const ag = costByAgent.get(r.fingerprint) ?? { name: r.display_name, vendor: r.vendor, usd: 0, runs: 0 };
+    const ag = costByAgent.get(r.fingerprint) ?? { fingerprint: r.fingerprint, name: r.display_name, vendor: r.vendor, usd: 0, runs: 0 };
     ag.usd += usd; ag.runs++; costByAgent.set(r.fingerprint, ag);
     for (const [model, t] of Object.entries(tbm) as any[]) {
       const rate: ModelRate | undefined = rates[model];

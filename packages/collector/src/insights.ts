@@ -14,6 +14,7 @@ export interface DailyTokens {
 }
 
 export interface AgentEconomics {
+  fingerprint: string;
   name: string;
   trigger: string;
   runs30d: number;
@@ -109,6 +110,7 @@ export function computeInsights(db: Database.Database, now = new Date()): FleetI
       }
       if (!anyTokens) tokens = null;
       return {
+        fingerprint: first.agent_fingerprint,
         name: first.display_name,
         trigger: first.trigger_source,
         runs30d: list.length,

@@ -1,0 +1,71 @@
+{
+  "lines": [
+    {
+      "id": "01",
+      "sfx": [
+        "deep impact on t=0",
+        "soft tick on each word swap"
+      ]
+    },
+    {
+      "id": "02",
+      "sfx": [
+        "soft whoosh per cascade wave",
+        "sub-drop on the cut to black"
+      ]
+    },
+    {
+      "id": "03",
+      "sfx": [
+        "riser into the wordmark pop",
+        "soft dock thud when the UI seats"
+      ]
+    },
+    {
+      "id": "04",
+      "sfx": [
+        "tick per counter landing",
+        "low pulse underneath"
+      ]
+    },
+    {
+      "id": "05",
+      "sfx": [
+        "airy riser across the push",
+        "soft pop per callout"
+      ]
+    },
+    {
+      "id": "06",
+      "sfx": [
+        "deep single hit on \"80%\"",
+        "soft tick per line"
+      ]
+    },
+    {
+      "id": "07",
+      "sfx": [
+        "notification ding (soft)",
+        "low tension pad"
+      ]
+    },
+    {
+      "id": "08",
+      "sfx": [
+        "tick per beat",
+        "soft resolve chord into the checklist"
+      ]
+    },
+    {
+      "id": "09",
+      "sfx": [
+        "keyboard clicks under the typing",
+        "single confident hit on return",
+        "low resolve tail"
+      ]
+    }
+  ],
+  "bgm": {
+    "mode": "none"
+  }
+}

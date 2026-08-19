@@ -224,6 +224,7 @@ tbody tr:last-child td{border-bottom:none}
 .dw-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--dim)}
 .dw-chip b{color:var(--txt);font-family:ui-monospace,monospace;font-size:10.5px;font-weight:500}
 .dw-chip.mcp{border-color:rgba(91,157,255,.4);color:var(--info)}
+.dw-tree{border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:10px 12px;max-height:280px;overflow:auto}
 .graph-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .graph-legend .gl{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim)}
 .graph-legend .gl i{width:9px;height:9px;border-radius:99px;display:inline-block}
@@ -401,7 +402,7 @@ function topCostAgentsCard(){
   const bd=el('div','bd'); bd.style.padding='0'; const t=el('table');
   t.innerHTML='<thead><tr><th>Agent</th><th>Runs</th><th>Est. cost</th></tr></thead>';
   const tb=el('tbody');
-  ANALYTICS.topCostAgents.slice(0,8).forEach(a=>{const tr=el('tr');tr.style.cursor='pointer';tr.onclick=()=>openAgent(a.name);tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(a.name)}</span><span class="vtag">${esc(a.vendor.replace('_',' '))}</span></td><td class="mono-c">${a.runs}</td><td class="mono-c">${fmtUsd(a.usd)}</td>`;tb.appendChild(tr);});
+  ANALYTICS.topCostAgents.slice(0,8).forEach(a=>{const tr=el('tr');tr.style.cursor='pointer';tr.onclick=()=>openAgent(a.name,a.fingerprint);tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(a.name)}</span><span class="vtag">${esc(a.vendor.replace('_',' '))}</span></td><td class="mono-c">${a.runs}</td><td class="mono-c">${fmtUsd(a.usd)}</td>`;tb.appendChild(tr);});
   t.appendChild(tb); bd.appendChild(t); c.appendChild(bd); return c;
 }
 function busiestHoursCard(){
@@ -481,7 +482,7 @@ function topAgentsCard(){
   t.innerHTML=`<thead><tr><th>Agent</th><th>Trigger</th><th>Runs</th><th>Tokens</th><th>Share</th><th>Unclean-end</th></tr></thead>`;
   const tb=el('tbody');
   top.forEach(a=>{
-    const tr=el('tr'); tr.style.cursor='pointer'; tr.onclick=()=>openAgent(a.name);
+    const tr=el('tr'); tr.style.cursor='pointer'; tr.onclick=()=>openAgent(a.name,a.fingerprint);
     tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(a.name)}</span></td>
       <td class="mono-c">${esc(a.trigger)}</td><td class="mono-c">${a.runs30d}</td>
       <td class="mono-c">${a.tokens30d==null?'<span class="unavail">unavail</span>':fmt(a.tokens30d)}</td>
@@ -552,7 +553,7 @@ function drawAgentTable(){
   });
   html+='</tbody></table></div>';
   card.innerHTML=html;
-  card.querySelectorAll('tbody tr').forEach((tr,i)=>{ if(rows[i]){ tr.style.cursor='pointer'; tr.onclick=()=>openAgent(rows[i].name); } });
+  card.querySelectorAll('tbody tr').forEach((tr,i)=>{ if(rows[i]){ tr.style.cursor='pointer'; tr.onclick=()=>openAgent(rows[i].name,rows[i].fingerprint); } });
   card.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{
     const k=th.dataset.k;
     if(state.sortKey===k)state.sortDir*=-1;else{state.sortKey=k;state.sortDir=k==='name'||k==='trigger'||k==='status'?1:-1;}
@@ -574,14 +575,14 @@ function drawActivity(){
   const bd=document.getElementById('activityFeed'); if(!bd||!ACTIVITY)return;
   const dotOf=s=>({completed:'var(--ok)',healthy:'var(--ok)',error:'var(--red)',unknown_end:'var(--amber)',running:'var(--info)'}[s]||'var(--dim)');
   if(!ACTIVITY.runs.length){bd.innerHTML='<div class="empty">No runs recorded yet.</div>';return;}
-  bd.innerHTML=ACTIVITY.runs.map(r=>`<div class="act-row" data-name="${esc(r.agentName)}">
+  bd.innerHTML=ACTIVITY.runs.map(r=>`<div class="act-row" data-name="${esc(r.agentName)}" data-fp="${esc(r.fingerprint||'')}">
     <span class="act-dot" style="background:${dotOf(r.status)}"></span>
     <span class="act-when mono">${rel(r.startedAt)}</span>
     <span class="act-name">${esc(r.agentName)}</span><span class="vtag">${esc(r.vendor.replace('_',' '))}</span>
     <span class="act-trig">${esc(r.trigger)}</span>
     <span class="act-status">${esc(r.status)}</span>
     <span class="act-tok mono">${r.tokens==null?'':fmt(r.tokens)+' tok'}</span></div>`).join('');
-  bd.querySelectorAll('.act-row').forEach(row=>{row.style.cursor='pointer';row.onclick=()=>openAgent(row.dataset.name);});
+  bd.querySelectorAll('.act-row').forEach(row=>{row.style.cursor='pointer';row.onclick=()=>openAgent(row.dataset.name,row.dataset.fp);});
 }
 /* ── LINEAGE ──────────────────────────────────────────────────────────── */
 function renderLineage(page){
@@ -952,7 +953,7 @@ function relationshipsTable(){
   const tb=el('tbody');
   [...GRAPH.edges].sort((a,b)=>b.spawns-a.spawns).slice(0,15).forEach(e=>{
     const p=nm[e.source],ch=nm[e.target]; if(!p||!ch)return;
-    const tr=el('tr'); tr.style.cursor='pointer'; tr.onclick=()=>openAgent(ch.name);
+    const tr=el('tr'); tr.style.cursor='pointer'; tr.onclick=()=>openAgent(ch.name,ch.fingerprint);
     tr.innerHTML=`<td class="agent-cell"><span class="nm">${esc(p.name)} <span style="color:var(--faint)">→</span> ${esc(ch.name)}</span></td>
       <td class="mono-c">${e.spawns}</td>
       <td class="mono-c">${e.tokens==null?'unavail':fmt(e.tokens)}</td>
@@ -1129,6 +1130,8 @@ async function openAgent(name, fp){
       <div class="dw-sec">Token trend (recent runs)</div>
       ${withTok.length?`<div class="dw-spark">${spark}</div>`:'<div class="dw-cad">No token data — this agent is catalog-only or its transcripts are unavailable.</div>'}
       ${relSection(a.fingerprint)}
+      <div class="dw-sec">Spawn tree</div>
+      <div class="dw-tree" id="dwTree"><div class="dw-cad">loading…</div></div>
       ${costSection(d)}
       ${toolSection(d, a)}
       <div class="dw-sec">Run history</div>
@@ -1143,6 +1146,30 @@ async function openAgent(name, fp){
   const fb=drawer.querySelector('#dwFocus');
   if(fb) fb.onclick=()=>focusAgent(a.fingerprint);
   renderTags(a.display_name, d.tags||[]);
+  loadSpawnTree(d, seq);
+}
+
+/* The drawer's run-level tree. agentDetail returns run ids but not which one
+   spawned the most, so pick the busiest via /api/timeline and render the real
+   tree with the existing treeNode(). */
+async function loadSpawnTree(d, seq){
+  const box=$('#dwTree'); if(!box)return;
+  const runs=(d.recentRuns||[]).map(r=>r.id).slice(0,8);
+  if(!d.subagentSpawns||!runs.length){
+    box.innerHTML='<div class="dw-cad">This agent has not spawned any subagents.</div>'; return;
+  }
+  let best=null;
+  for(const id of runs){
+    const t=await fetch('/api/lineage/tree?run='+encodeURIComponent(id)).then(r=>r.ok?r.json():null).catch(()=>null);
+    if(seq!==drawerSeq)return; // drawer moved on
+    if(t&&t.children&&t.children.length&&(!best||t.children.length>best.children.length))best=t;
+    if(best&&best.children.length>=20)break; // good enough, stop hammering
+  }
+  if(seq!==drawerSeq)return;
+  box.innerHTML='';
+  if(!best){ box.innerHTML='<div class="dw-cad">No spawn tree recorded on this agent\u2019s recent runs.</div>'; return; }
+  const cap=el('div','dw-cad'); cap.textContent=`busiest recent run \u00b7 ${best.children.length} direct \u00b7 ${best.descendantCount} descendants`;
+  box.appendChild(cap); box.appendChild(treeNode(best,0));
 }
 
 /* Relationships come from GRAPH.edges, which already carries spawns, tokens and
