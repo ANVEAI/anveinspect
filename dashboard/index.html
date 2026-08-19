@@ -206,7 +206,24 @@ tbody tr:last-child td{border-bottom:none}
 .skel{background:linear-gradient(90deg,var(--surface2) 25%,var(--elevated) 37%,var(--surface2) 63%);background-size:400% 100%;animation:sk 1.3s infinite;border-radius:6px}
 @keyframes sk{0%{background-position:100% 0}100%{background-position:-100% 0}}
 .allclear{display:flex;align-items:center;gap:10px;padding:16px 18px;color:var(--ok);font-size:13.5px}
-.graph-canvas{width:100%;height:470px;display:block;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--line-soft);cursor:grab}
+.graph-canvas{width:100%;height:470px;display:block;border-radius:var(--radius-sm);background:var(--bg);border:1px solid var(--line-soft);cursor:grab;user-select:none}
+.graph-canvas.focused{border-color:var(--info)}
+.graph-crumbs{display:none;align-items:center;gap:7px;margin-bottom:9px;flex-wrap:wrap}
+.gcrumb{background:var(--surface2);border:1px solid var(--line);color:var(--dim);border-radius:999px;padding:3px 11px;font:inherit;font-size:11.5px;cursor:pointer}
+.gcrumb:hover{border-color:var(--info);color:var(--txt)}
+.gsep{color:var(--faint);font-size:11px}
+.gcur{color:var(--txt);font-size:11.5px;font-weight:600;padding:3px 4px}
+.dw-rels{border:1px solid var(--line-soft);border-radius:var(--radius-sm);overflow:hidden}
+.dw-rel{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:12.5px}
+.dw-rel:last-child{border-bottom:none}
+.dw-rel:hover{background:var(--surface2)}
+.dw-rel .dir{color:var(--faint);font-family:ui-monospace,monospace;font-size:10px;white-space:nowrap}
+.dw-rel .rn{color:var(--txt);font-weight:500}
+.dw-rel .rm{margin-left:auto;color:var(--dim);font-family:ui-monospace,monospace;font-size:10.5px;white-space:nowrap}
+.dw-chips{display:flex;flex-wrap:wrap;gap:6px}
+.dw-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--dim)}
+.dw-chip b{color:var(--txt);font-family:ui-monospace,monospace;font-size:10.5px;font-weight:500}
+.dw-chip.mcp{border-color:rgba(91,157,255,.4);color:var(--info)}
 .graph-legend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
 .graph-legend .gl{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dim)}
 .graph-legend .gl i{width:9px;height:9px;border-radius:99px;display:inline-block}
@@ -297,7 +314,7 @@ const routes=['overview','agents','activity','lineage','attention','connectors']
 const titles={overview:'Overview',agents:'Agents',activity:'Activity',lineage:'Lineage',attention:'Attention',connectors:'Connectors'};
 function currentRoute(){const h=location.hash.replace('#','');return routes.includes(h)?h:'overview';}
 function go(r){location.hash=r;}
-window.addEventListener('hashchange',render);
+window.addEventListener('hashchange',()=>{graphFocus.length=0;redrawGraph=null;render();});
 
 function setActive(){
   const r=currentRoute();
@@ -643,16 +660,47 @@ function treeNode(n,depth){
 
 /* ── AGENT RELATIONSHIP GRAPH (canvas force layout, zero deps) ─────────── */
 const GRAPH_COLORS={claude_code:'#3ecf8e',codex:'#5b9dff',openclaw:'#ffb454',hermes:'#c792ea',bedrock:'#ff9d76',vertex:'#7ee0d2',foundry:'#8fa8ff',cloudflare:'#f6821f'};
+
+/* Focus state lives at module level on purpose. load() runs every 60s and calls
+   render(), which wipes #view — so anything kept inside initGraph's closure is
+   destroyed twice a minute and would eject the user mid-read. Keyed by
+   fingerprint, never by array index: indices are invalidated on every rebuild.
+   graphPos also survives, which incidentally stops the layout re-scrambling
+   from the circle seed on every refresh. */
+const graphFocus=[];            // [] = full graph; else a drill path of fingerprints
+const graphPos={};              // fingerprint -> {x,y}
+const MAX_FOCUS_NEIGHBOURS=12;  // beyond this the ring can't be labelled legibly
+let redrawGraph=null;           // set by initGraph so the drawer can drive focus
+
+function focusAgent(fp){
+  if(!GRAPH||!GRAPH.nodes.some(n=>n.fingerprint===fp))return;
+  const at=graphFocus.indexOf(fp);
+  if(at>=0) graphFocus.length=at+1;        // re-entering an ancestor truncates, never cycles
+  else if(graphFocus[graphFocus.length-1]!==fp) graphFocus.push(fp);
+  if(graphFocus.length>6) graphFocus.splice(0,graphFocus.length-6);
+  if(redrawGraph) redrawGraph();
+  else if(currentRoute()==='lineage') render();
+}
+function clearFocus(){ graphFocus.length=0; if(redrawGraph)redrawGraph(); }
+
+/* The visible set when focused: the hub, its parents, its children, and every
+   edge among that set — so sibling links show, not just the star. */
+function focusSet(fp){
+  const keep=new Set([fp]);
+  const rel=GRAPH.edges.filter(e=>e.source===fp||e.target===fp)
+    .sort((a,b)=>b.spawns-a.spawns).slice(0,MAX_FOCUS_NEIGHBOURS);
+  rel.forEach(e=>keep.add(e.source===fp?e.target:e.source));
+  const hidden=GRAPH.edges.filter(e=>e.source===fp||e.target===fp).length-rel.length;
+  return {keep, hidden};
+}
+
 function agentGraphCard(){
   const c=el('div','card');
-  c.innerHTML=`<div class="hd"><h3>Relationship graph</h3><span class="meta">${GRAPH.nodes.length} agents · ${GRAPH.edges.length} relationships${GRAPH.truncated?' · heaviest shown':''} · node size = run volume · arrow = spawns</span></div>`;
+  const hd=el('div','hd'); hd.innerHTML=`<h3>Relationship graph</h3><span class="meta" id="graphMeta"></span>`;
+  c.appendChild(hd);
   const bd=el('div','bd');
-  const legend=el('div','graph-legend');
-  [...new Set(GRAPH.nodes.map(n=>n.vendor))].forEach(v=>{
-    const s=el('span','gl'); s.innerHTML=`<i style="background:${GRAPH_COLORS[v]||'#9aa7b8'}"></i>${esc(VENDOR_LABEL[v]||v)}`; legend.appendChild(s);
-  });
-  const hint=el('span','gl-hint'); hint.textContent='drag to arrange · hover for detail · click for the agent drawer'; legend.appendChild(hint);
-  bd.appendChild(legend);
+  const crumbs=el('div','graph-crumbs'); crumbs.id='graphCrumbs'; bd.appendChild(crumbs);
+  const legend=el('div','graph-legend'); legend.id='graphLegend'; bd.appendChild(legend);
   const canvas=document.createElement('canvas'); canvas.className='graph-canvas'; bd.appendChild(canvas);
   c.appendChild(bd);
   requestAnimationFrame(()=>initGraph(canvas)); // wait for layout so clientWidth is real
@@ -664,20 +712,58 @@ function initGraph(canvas){
   canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
   const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
   const maxRuns=Math.max(1,...GRAPH.nodes.map(n=>n.runs));
-  // seed on a circle (stable start), then let the forces settle it
-  const N=GRAPH.nodes.map((n,i)=>({...n,
-    x:W/2+Math.cos(i/GRAPH.nodes.length*2*Math.PI)*Math.min(W,H)*.33,
-    y:H/2+Math.sin(i/GRAPH.nodes.length*2*Math.PI)*Math.min(W,H)*.33,
-    vx:0,vy:0, r:7+Math.round(14*Math.sqrt(n.runs/maxRuns))}));
-  const idx={}; N.forEach((n,i)=>idx[n.fingerprint]=i);
-  const selfLoops={}; // agent spawning its own kind — drawn as a loop arc, not a zero-length line
-  const E=GRAPH.edges.map(e=>({s:idx[e.source],t:idx[e.target],spawns:e.spawns,w:1+Math.min(4.5,Math.log2(e.spawns+1)*.9)}))
-    .filter(e=>{
-      if(e.s==null||e.t==null)return false;
-      if(e.s===e.t){selfLoops[e.s]=(selfLoops[e.s]||0)+e.spawns;return false;}
-      return true;
+  const RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
+  let N=[], E=[], idx={}, selfLoops={}, hubIdx=null, hiddenNeighbours=0;
+  let alpha=1, drag=null, hover=null, down=null, lastClick=null;
+
+  /* Rebuildable so double-click can re-filter without render() tearing the whole
+     view down. Drops any focus fingerprint that no longer exists in the data,
+     otherwise N[undefined] would crash tick(). */
+  function build(){
+    while(graphFocus.length && !GRAPH.nodes.some(n=>n.fingerprint===graphFocus[graphFocus.length-1])) graphFocus.pop();
+    const hub=graphFocus[graphFocus.length-1]||null;
+    let keep=null; hiddenNeighbours=0;
+    if(hub){ const f=focusSet(hub); keep=f.keep; hiddenNeighbours=f.hidden; }
+    const nodes=keep?GRAPH.nodes.filter(n=>keep.has(n.fingerprint)):GRAPH.nodes;
+
+    // Role-biased seeding: parents to the left arc, children to the right, so the
+    // arrow direction is readable before reading a single label.
+    const kidsOf=new Set(hub?GRAPH.edges.filter(e=>e.source===hub).map(e=>e.target):[]);
+    let ai=0;
+    N=nodes.map((n,i)=>{
+      const cached=graphPos[n.fingerprint];
+      let x,y;
+      if(hub&&n.fingerprint===hub){ x=W/2; y=H/2; }
+      else if(cached&&!hub){ x=cached.x; y=cached.y; }
+      else if(hub){
+        const total=Math.max(1,nodes.length-1);
+        const span=kidsOf.has(n.fingerprint)?[-1.4,1.4]:[1.75,4.53];
+        const t=total===1?.5:(ai++)/(total-1);
+        const a=span[0]+(span[1]-span[0])*t;
+        // ±6px jitter is required, not cosmetic: two exactly-coincident nodes
+        // produce a zero unit vector and can never push each other apart.
+        x=W/2+Math.cos(a)*RING+(Math.random()-.5)*12;
+        y=H/2+Math.sin(a)*RING+(Math.random()-.5)*12;
+      } else {
+        x=W/2+Math.cos(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33;
+        y=H/2+Math.sin(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33;
+      }
+      return {...n,x,y,vx:0,vy:0,r:7+Math.round(14*Math.sqrt(n.runs/maxRuns))};
     });
-  let alpha=1, drag=null, hover=null, down=null;
+    idx={}; N.forEach((n,i)=>idx[n.fingerprint]=i);
+    hubIdx=hub!=null&&idx[hub]!=null?idx[hub]:null;
+    selfLoops={};
+    E=GRAPH.edges.map(e=>({s:idx[e.source],t:idx[e.target],spawns:e.spawns,tokens:e.tokens,dataDown:e.dataDown,dataUp:e.dataUp,w:1+Math.min(4.5,Math.log2(e.spawns+1)*.9)}))
+      .filter(e=>{
+        if(e.s==null||e.t==null)return false;
+        if(e.s===e.t){selfLoops[e.s]=(selfLoops[e.s]||0)+e.spawns;return false;}
+        return true;
+      });
+    // every index-keyed local is now stale
+    drag=null; down=null; hover=null; lastClick=null; hideTip();
+    alpha=Math.max(alpha,hub?.75:.35);
+    paintChrome();
+  }
   function tick(){
     for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){ // O(n²) repulsion — edges are capped, this stays small
       const a=N[i],b=N[j]; let dx=a.x-b.x,dy=a.y-b.y; const d2=dx*dx+dy*dy||1; const d=Math.sqrt(d2);
@@ -689,8 +775,18 @@ function initGraph(canvas){
       const f=(d-(120+a.r+b.r))*.012; dx/=d; dy/=d;
       a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
     }
-    for(const n of N){ // gentle gravity + damping + bounds
-      n.vx+=(W/2-n.x)*.004; n.vy+=(H/2-n.y)*.004;
+    // The drawer covers the right ~560px, so when focused shift the ring centre
+    // left to keep the neighbourhood visible beside it rather than under it.
+    const occl=drawer.classList.contains('on')?Math.max(0,canvas.getBoundingClientRect().right-(window.innerWidth-560)):0;
+    const cx=hubIdx!==null?Math.max(RING+40,W/2-occl/2):W/2;
+    for(const n of N){ // gravity + damping + bounds
+      if(hubIdx!==null){
+        // ring gravity: centre-pull collapses 5 nodes into a knot, since the
+        // repulsion term is short-range and effectively gone past ~100px.
+        const dx=n.x-cx, dy=n.y-H/2, d=Math.hypot(dx,dy)||1;
+        const k=(RING-d)*.010;
+        n.vx+=dx/d*k; n.vy+=dy/d*k;
+      } else { n.vx+=(W/2-n.x)*.004; n.vy+=(H/2-n.y)*.004; }
       n.vx*=.85; n.vy*=.85;
       n.x=Math.max(n.r+6,Math.min(W-n.r-6,n.x+n.vx*alpha));
       n.y=Math.max(n.r+6,Math.min(H-n.r-24,n.y+n.vy*alpha));
@@ -706,6 +802,12 @@ function initGraph(canvas){
         if(Math.abs(gap)<need){const push=(need-Math.abs(gap))*.18, s=gap>=0?1:-1; a.x-=s*push; b.x+=s*push;}
       }
     }
+    // Pin the hub last — the separation pass above would otherwise shove it
+    // off-centre and the hub-and-spoke reading would be lost.
+    if(hubIdx!==null&&drag!==hubIdx){
+      const occl=drawer.classList.contains('on')?Math.max(0,canvas.getBoundingClientRect().right-(window.innerWidth-560)):0;
+      const h=N[hubIdx]; h.x=Math.max(RING+40,W/2-occl/2); h.y=H/2; h.vx=0; h.vy=0;
+    }
   }
   function draw(){
     ctx.clearRect(0,0,W,H);
@@ -719,17 +821,25 @@ function initGraph(canvas){
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       ctx.fillStyle=ctx.strokeStyle; // arrowhead: direction = who spawned whom
       ctx.beginPath(); ctx.moveTo(x2+dx*8,y2+dy*8); ctx.lineTo(x2-dy*4,y2+dx*4); ctx.lineTo(x2+dy*4,y2-dx*4); ctx.closePath(); ctx.fill();
-      if(e.spawns>=5||hi){
+      // when focused there are few enough edges to always label, and the count
+      // is the payload rather than decoration
+      if(e.spawns>=5||hi||hubIdx!==null){
         ctx.fillStyle=hi?'rgba(232,237,244,.95)':'rgba(154,167,184,.7)';
         ctx.font='10px ui-monospace,monospace';
-        ctx.fillText(e.spawns+'×',(x1+x2)/2+5,(y1+y2)/2-5);
+        const vol=hi&&e.dataDown!=null?`  ${fmt(e.dataDown)}ch↓ ${fmt(e.dataUp)}ch↑`:'';
+        ctx.fillText(e.spawns+'×'+vol,(x1+x2)/2+5,(y1+y2)/2-5);
       }
     }
     N.forEach((n,i)=>{
       const col=GRAPH_COLORS[n.vendor]||'#9aa7b8';
+      const isHub=i===hubIdx;
+      if(isHub){ // soft halo so the focused agent reads as the anchor
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.r+6,0,6.2832);
+        ctx.strokeStyle=col+'44'; ctx.lineWidth=2; ctx.stroke();
+      }
       ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,6.2832);
-      ctx.fillStyle=col+(hover===i?'40':'22'); ctx.fill();
-      ctx.lineWidth=hover===i?2.4:1.5; ctx.strokeStyle=col; ctx.stroke();
+      ctx.fillStyle=col+(isHub?'55':hover===i?'40':'22'); ctx.fill();
+      ctx.lineWidth=isHub?3:hover===i?2.4:1.5; ctx.strokeStyle=col; ctx.stroke();
       if(selfLoops[i]){ // "spawns its own kind" loop arc at the node's top-right
         ctx.beginPath(); ctx.arc(n.x+n.r*.85,n.y-n.r*.85,5.5,-.6,4.2);
         ctx.lineWidth=1.4; ctx.strokeStyle=col; ctx.stroke();
@@ -744,15 +854,57 @@ function initGraph(canvas){
       ctx.textAlign='left';
     });
   }
+  /* Header, breadcrumbs and legend all describe the *current* node set, so they
+     are repainted on every build rather than written once at card creation. */
+  function paintChrome(){
+    const hub=hubIdx!==null?N[hubIdx]:null;
+    const meta=document.getElementById('graphMeta');
+    if(meta) meta.textContent = hub
+      ? `focused on ${hub.name} · ${E.length} relationship${E.length===1?'':'s'} · ${GRAPH.nodes.length-N.length} agents hidden${hiddenNeighbours?` · ${hiddenNeighbours} more neighbours not shown`:''}${GRAPH.truncated?' · graph capped, may be incomplete':''}`
+      : `${GRAPH.nodes.length} agents · ${GRAPH.edges.length} relationships${GRAPH.truncated?' · heaviest shown':''} · node size = run volume · arrow = spawns`;
+    canvas.classList.toggle('focused',!!hub);
+
+    const cr=document.getElementById('graphCrumbs');
+    if(cr){
+      cr.style.display=graphFocus.length?'flex':'none';
+      if(graphFocus.length){
+        const nm={}; GRAPH.nodes.forEach(n=>nm[n.fingerprint]=n.name);
+        cr.innerHTML=`<button class="gcrumb" data-i="-1">← All agents</button>`+
+          graphFocus.map((fp,i)=>`<span class="gsep">›</span>${i===graphFocus.length-1
+            ?`<span class="gcur">${esc(nm[fp]||fp.slice(0,10))}</span>`
+            :`<button class="gcrumb" data-i="${i}">${esc(nm[fp]||fp.slice(0,10))}</button>`}`).join('');
+        cr.querySelectorAll('.gcrumb').forEach(b=>b.onclick=()=>{
+          const i=+b.dataset.i;
+          if(i<0) graphFocus.length=0; else graphFocus.length=i+1;
+          build();
+        });
+      }
+    }
+    const lg=document.getElementById('graphLegend');
+    if(lg){
+      lg.innerHTML='';
+      [...new Set(N.map(n=>n.vendor))].forEach(v=>{
+        const s=el('span','gl'); s.innerHTML=`<i style="background:${GRAPH_COLORS[v]||'#9aa7b8'}"></i>${esc(VENDOR_LABEL[v]||v)}`; lg.appendChild(s);
+      });
+      const hint=el('span','gl-hint');
+      hint.textContent=hubIdx!==null?'double-click a neighbour to drill in · drag to arrange':'drag to arrange · click for details · double-click to focus';
+      lg.appendChild(hint);
+    }
+  }
+
+  redrawGraph=build;   // let the drawer drive focus
+  build();
+
   (function loop(){
-    if(!canvas.isConnected)return; // view navigated away — stop the sim, free the frame
+    if(!canvas.isConnected){ redrawGraph=null; return; } // view navigated away — stop the sim, free the frame
     if(alpha>.02||drag!==null){tick(); alpha*=.996;}
     draw();
+    for(const n of N) graphPos[n.fingerprint]={x:n.x,y:n.y}; // survive the 60s rebuild
     requestAnimationFrame(loop);
   })();
   const pos=ev=>{const r=canvas.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top};};
   const at=p=>{for(let i=N.length-1;i>=0;i--){const n=N[i],dx=p.x-n.x,dy=p.y-n.y;if(dx*dx+dy*dy<=(n.r+5)*(n.r+5))return i;}return null;};
-  canvas.onmousedown=ev=>{const p=pos(ev);const i=at(p);if(i!==null){drag=i;down=p;canvas.style.cursor='grabbing';}};
+  canvas.onmousedown=ev=>{if(ev.button!==0)return;const p=pos(ev);const i=at(p);if(i!==null){drag=i;down=p;canvas.style.cursor='grabbing';}};
   canvas.onmousemove=ev=>{
     const p=pos(ev);
     if(drag!==null){N[drag].x=p.x;N[drag].y=p.y;N[drag].vx=0;N[drag].vy=0;alpha=Math.max(alpha,.3);hideTip();return;}
@@ -761,11 +913,29 @@ function initGraph(canvas){
     else hideTip();
   };
   canvas.onmouseup=ev=>{
+    if(ev.button!==0)return;
     canvas.style.cursor='grab';
     if(drag===null)return;
     const p=pos(ev), moved=down?Math.hypot(p.x-down.x,p.y-down.y):99;
     const i=drag; drag=null; down=null;
-    if(moved<4)openAgent(N[i].name); // a click, not a drag → open the detail drawer
+    if(moved<4){
+      lastClick={i,t:performance.now()};   // dblclick below verifies same node
+      openAgent(N[i].name,N[i].fingerprint); // a click, not a drag → open the detail drawer
+    }
+  };
+  /* Native dblclick rather than a delay timer on single click: the first click
+     already opens the drawer, which the focused view wants open anyway, so the
+     fix belongs in openAgent's de-dupe, not in taxing the primary interaction.
+     There is one canvas element, so the browser will fire dblclick even for two
+     clicks on *different* bubbles — hence the same-node check. */
+  canvas.ondblclick=ev=>{
+    if(ev.button!==0)return;
+    ev.preventDefault();
+    const j=at(pos(ev));
+    if(j===null||!lastClick||lastClick.i!==j||performance.now()-lastClick.t>900)return;
+    const fp=N[j].fingerprint;
+    lastClick=null;
+    focusAgent(fp);
   };
   canvas.onmouseleave=()=>{hover=null;drag=null;down=null;hideTip();canvas.style.cursor='grab';};
 }
@@ -910,12 +1080,28 @@ function fixFor(v){return {vertex:'gcloud auth login',bedrock:'aws configure  (o
 const drawer=$('#drawer'), scrim=$('#scrim');
 scrim.onclick=closeDrawer;
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
-function closeDrawer(){drawer.classList.remove('on');scrim.classList.remove('on');}
-async function openAgent(name){
+function closeDrawer(){drawer.classList.remove('on');scrim.classList.remove('on');drawerKey=null;}
+/* Two guards, both load-bearing once double-click exists:
+   - drawerSeq: openAgent awaits a fetch then overwrites innerHTML unconditionally.
+     Open A then B and A's slower reply would land on top of B. Only the newest
+     request may paint.
+   - drawerKey/At: a double-click fires two mouseups, so the first click already
+     opened this exact agent. Swallow the repeat, but let a deliberate re-click
+     through as a refresh. */
+let drawerSeq=0, drawerKey=null, drawerAt=0;
+async function openAgent(name, fp){
+  const key=fp||name;
+  if(drawer.classList.contains('on')&&drawerKey===key&&performance.now()-drawerAt<700)return;
+  drawerKey=key; drawerAt=performance.now();
+  const seq=++drawerSeq;
   drawer.classList.add('on');scrim.classList.add('on');
   drawer.innerHTML=`<div class="dw-hd"><div><div class="title">${esc(name)}</div></div><button class="dw-close">✕</button></div><div class="dw-bd"><div class="empty">loading…</div></div>`;
   drawer.querySelector('.dw-close').onclick=closeDrawer;
-  const d=await fetch('/api/agent?name='+encodeURIComponent(name)).then(r=>r.json()).catch(()=>null);
+  // query by fingerprint when we have one: agentDetail resolves a display name with
+  // ORDER BY last_run_at LIMIT 1, and 46 of 159 agents share a name, so a name
+  // lookup can return a different agent than the one that was clicked.
+  const d=await fetch('/api/agent?name='+encodeURIComponent(key)).then(r=>r.json()).catch(()=>null);
+  if(seq!==drawerSeq)return; // superseded by a newer open
   if(!d||d.error){ drawer.querySelector('.dw-bd').innerHTML=`<div class="empty">${esc(d?.error||'not found')}</div>`; return; }
   const a=d.agent;
   const runs=d.recentRuns||[];
@@ -942,11 +1128,79 @@ async function openAgent(name){
       <div class="dw-cad">${d.cadence?`<span class="on">${esc(d.cadence.expect)}</span> · grace ${d.cadence.grace_minutes}m · ${d.cadence.declared?'declared':'inferred'} · set via ${esc(d.cadence.origin)} ${esc((d.cadence.updated_at||'').slice(0,10))}`:'No cadence declared. Ask Claude: "watch '+esc(a.display_name)+', it runs daily at &lt;time&gt;" — or run <span class="mono">anveinspect cadence declare '+esc(a.display_name)+' "daily HH:MM"</span>'}</div>
       <div class="dw-sec">Token trend (recent runs)</div>
       ${withTok.length?`<div class="dw-spark">${spark}</div>`:'<div class="dw-cad">No token data — this agent is catalog-only or its transcripts are unavailable.</div>'}
+      ${relSection(a.fingerprint)}
+      ${costSection(d)}
+      ${toolSection(d, a)}
       <div class="dw-sec">Run history</div>
       <div class="dw-runs">${runs.length?runs.slice(0,20).map(r=>`<div class="dw-run"><span class="dot" style="background:${dotOf(r.status)}"></span><span class="ts">${esc((r.startedAt||'').replace('T',' ').slice(0,19))}</span><span>${esc(r.status)}</span><span class="tk">${r.tokens==null?'unavail':fmt(r.tokens)}</span></div>`).join(''):'<div class="dw-run">no runs recorded</div>'}</div>
     </div>`;
   drawer.querySelector('.dw-close').onclick=closeDrawer;
+  // relationship rows drill sideways into the other agent
+  drawer.querySelectorAll('[data-relfp]').forEach(row=>row.onclick=()=>{
+    openAgent(row.dataset.relname, row.dataset.relfp);
+    if(currentRoute()==='lineage'&&GRAPH) focusAgent(row.dataset.relfp);
+  });
+  const fb=drawer.querySelector('#dwFocus');
+  if(fb) fb.onclick=()=>focusAgent(a.fingerprint);
   renderTags(a.display_name, d.tags||[]);
+}
+
+/* Relationships come from GRAPH.edges, which already carries spawns, tokens and
+   the chars exchanged each way. GRAPH is only fetched by renderLineage, so it is
+   null on every other route — say "open Lineage" rather than "no relationships",
+   because those mean very different things. */
+function relSection(fp){
+  if(!GRAPH) return `<div class="dw-sec">Relationships</div><div class="dw-cad">Open the Lineage view to load the relationship graph.</div>`;
+  const nm={}; GRAPH.nodes.forEach(n=>nm[n.fingerprint]=n);
+  const kids=GRAPH.edges.filter(e=>e.source===fp);
+  const pars=GRAPH.edges.filter(e=>e.target===fp);
+  const row=(e,other,dir)=>{
+    const o=nm[other]||{name:other.slice(0,12),vendor:'unknown'};
+    const vol=[e.dataDown!=null?fmt(e.dataDown)+' ch ↓':null,e.dataUp!=null?fmt(e.dataUp)+' ch ↑':null].filter(Boolean).join(' · ');
+    return `<div class="dw-rel" data-relfp="${esc(other)}" data-relname="${esc(o.name)}">
+      <span class="dir">${dir}</span>
+      <span class="rn">${esc(o.name)}</span><span class="vtag">${esc((o.vendor||'').replace('_',' '))}</span>
+      <span class="rm">${fmt(e.spawns)}× · ${e.tokens==null?'tokens unavail':fmt(e.tokens)+' tok'}${vol?' · '+vol:''}</span></div>`;
+  };
+  if(!kids.length&&!pars.length)
+    return `<div class="dw-sec">Relationships</div><div class="dw-cad">No spawn relationships recorded${GRAPH.truncated?' among the heaviest '+GRAPH.edges.length+' shown':''}.</div>`;
+  return `<div class="dw-sec">Relationships${GRAPH.truncated?' <span style="color:var(--amber);text-transform:none;letter-spacing:0;font-weight:400">— graph capped, may be incomplete</span>':''}</div>
+    <div class="dw-rels">
+      ${pars.map(e=>row(e,e.source,'↑ spawned by')).join('')}
+      ${kids.map(e=>row(e,e.target,'↓ spawns')).join('')}
+    </div>`;
+}
+
+/* Cost is an undercount whenever a model has no rate, so never print a bare
+   number — the count of unpriced runs travels with it. */
+function costSection(d){
+  const c=d.cost; if(!c) return '';
+  const caveat=[];
+  if(c.unpricedRuns) caveat.push(`${c.unpricedRuns} run${c.unpricedRuns===1?'':'s'} unpriced`);
+  if(c.partialRuns)  caveat.push(`${c.partialRuns} partially priced`);
+  const models=(d.models||[]).map(m=>`<div class="dw-run"><span class="ts mono">${esc(m.model)}</span><span class="tk">${m.runs} run${m.runs===1?'':'s'}</span></div>`).join('');
+  return `<div class="dw-sec">Cost · last ${d.windowDays}d</div>
+    <div class="dw-stats">
+      <div class="dw-stat"><div class="l">Estimated</div><div class="v">${c.usd==null?'—':fmtUsd(c.usd)}</div></div>
+      <div class="dw-stat"><div class="l">Tokens</div><div class="v">${d.tokensTotal==null?'—':fmt(d.tokensTotal)}</div></div>
+      <div class="dw-stat"><div class="l">Runs priced</div><div class="v">${c.pricedRuns}/${d.windowRunCount}</div></div>
+    </div>
+    ${caveat.length?`<div class="dw-cad" style="color:var(--amber)">Undercount — ${caveat.join(', ')}. Unrated models contribute nothing to the total.</div>`:''}
+    ${models?`<div class="dw-runs">${models}</div>`:''}`;
+}
+
+/* Codex writes an empty tool_call_counts blob, so "no tools" there means the
+   platform does not report them — not that none were used. */
+function toolSection(d, a){
+  const tools=d.toolCalls||[], mcp=d.mcpServers||[];
+  if(!tools.length){
+    const why=a.vendor==='codex'?'This platform does not report tool usage.':'No tool calls recorded in this window.';
+    return `<div class="dw-sec">Tools</div><div class="dw-cad">${why}</div>`;
+  }
+  return `<div class="dw-sec">Tools · ${d.runsWithTools} of ${d.windowRunCount} runs</div>
+    <div class="dw-chips">${tools.slice(0,12).map(t=>`<span class="dw-chip">${esc(t.name.replace(/^mcp__/,'').replace(/__/g,' · '))}<b>${fmt(t.calls)}</b></span>`).join('')}</div>
+    ${mcp.length?`<div class="dw-sec">MCP servers</div>
+      <div class="dw-chips">${mcp.slice(0,10).map(m=>`<span class="dw-chip mcp">${esc(m.server)}<b>${fmt(m.calls)}</b></span>`).join('')}</div>`:''}`;
 }
 function renderTags(agentName, tags){
   const box=$('#dwTags'); if(!box)return;

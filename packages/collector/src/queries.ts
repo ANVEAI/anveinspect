@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import type { Alert, Cadence } from '@anveinspect/schema';
 import { checkMissedWindow, checkTokenSpike, parseExpect } from './cadence.js';
 import { machineId } from './claude-scanner.js';
+import { costOf, loadRates } from './pricing.js';
 import { allTags, tagsFor } from './tags.js';
 
 /**
@@ -166,6 +167,63 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
   const cadence = db
     .prepare(`SELECT expect, grace_minutes, declared, origin, updated_at FROM cadences WHERE agent_fingerprint = ?`)
     .get(agent.fingerprint) as any;
+  // Everything below is scoped to a fixed window so cost and tool figures are
+  // comparable between agents. `recentRuns` stays capped at 30 for display; these
+  // aggregates deliberately read wider.
+  const windowDays = 30;
+  const since = new Date(Date.now() - windowDays * 86_400_000).toISOString();
+  const windowRuns = db
+    .prepare(
+      `SELECT tokens_by_model, models, tool_call_counts
+       FROM runs WHERE agent_fingerprint = ? AND started_at >= ?`,
+    )
+    .all(agent.fingerprint, since) as any[];
+
+  // Tool usage. tool_call_counts is collected on most runs but was never read by
+  // anything until now. MCP tools follow the `mcp__<server>__<tool>` convention,
+  // which is the only way to attribute a call back to a server.
+  const toolTally = new Map<string, number>();
+  const mcpTally = new Map<string, number>();
+  let runsWithTools = 0;
+  for (const r of windowRuns) {
+    const counts = safeParse<Record<string, number>>(r.tool_call_counts, {});
+    let any = false;
+    for (const [tool, n] of Object.entries(counts)) {
+      if (typeof n !== 'number' || n <= 0) continue;
+      any = true;
+      toolTally.set(tool, (toolTally.get(tool) ?? 0) + n);
+      if (tool.startsWith('mcp__')) {
+        const server = tool.split('__')[1];
+        if (server) mcpTally.set(server, (mcpTally.get(server) ?? 0) + n);
+      }
+    }
+    if (any) runsWithTools += 1;
+  }
+
+  // Cost. costOf needs the per-model blob, not the pre-summed number, and reports
+  // whether a model in the run lacked a rate — an unpriced model contributes 0, so
+  // a `partial` total is an undercount and must never be presented as exact.
+  const rates = loadRates();
+  const modelRuns = new Map<string, number>();
+  let usd = 0;
+  let pricedRuns = 0;
+  let partialRuns = 0;
+  let tokensTotal: number | null = null;
+  for (const r of windowRuns) {
+    for (const m of safeParse<string[]>(r.models, [])) {
+      modelRuns.set(m, (modelRuns.get(m) ?? 0) + 1);
+    }
+    const t = sumTokens(r.tokens_by_model);
+    if (t !== null) tokensTotal = (tokensTotal ?? 0) + t;
+    const blob = safeParse<Record<string, any> | null>(r.tokens_by_model, null);
+    if (!blob) continue;
+    const c = costOf(blob as any, rates);
+    if (!c.priced) continue;
+    usd += c.usd;
+    pricedRuns += 1;
+    if (c.partial) partialRuns += 1;
+  }
+
   return {
     agent,
     tags: tagsFor(db, agent.fingerprint),
@@ -179,6 +237,21 @@ export function agentDetail(db: Database.Database, nameOrFingerprint: string) {
       models: safeParse(r.models, []), // corrupt models blob -> [], never crash the detail view
       tokens: sumTokens(r.tokens_by_model),
     })),
+    // ── additive: existing consumers are unaffected ──
+    windowDays,
+    windowRunCount: windowRuns.length,
+    tokensTotal,
+    cost: {
+      usd: pricedRuns > 0 ? usd : null,
+      pricedRuns,
+      partialRuns, // > 0 means usd is an undercount
+      unpricedRuns: windowRuns.length - pricedRuns,
+      ratesSource: process.env.ANVEINSPECT_PRICING ? 'custom' : 'default',
+    },
+    models: [...modelRuns.entries()].sort((a, b) => b[1] - a[1]).map(([model, runs]) => ({ model, runs })),
+    toolCalls: [...toolTally.entries()].sort((a, b) => b[1] - a[1]).map(([name, calls]) => ({ name, calls })),
+    mcpServers: [...mcpTally.entries()].sort((a, b) => b[1] - a[1]).map(([server, calls]) => ({ server, calls })),
+    runsWithTools,
   };
 }
 
