@@ -708,14 +708,17 @@ function agentGraphCard(){
   return c;
 }
 function initGraph(canvas){
-  const W=canvas.clientWidth||900, H=470;
+  let W=canvas.clientWidth||900; const H=470;
   const dpr=window.devicePixelRatio||1;
-  canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
-  const ctx=canvas.getContext('2d'); ctx.scale(dpr,dpr);
+  const ctx=canvas.getContext('2d');
+  // Size the bitmap to the CSS box. The card is fluid but a bitmap is not: left
+  // stretched, labels smear and pos() no longer maps onto node coordinates.
+  function fit(){ canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); }
+  fit();
   const maxRuns=Math.max(1,...GRAPH.nodes.map(n=>n.runs));
-  const RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
+  let RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
   let N=[], E=[], idx={}, selfLoops={}, hubIdx=null, hiddenNeighbours=0;
-  let alpha=1, drag=null, hover=null, down=null, lastClick=null;
+  let alpha=1, drag=null, hover=null, down=null, lastClick=null, prevClick=null;
 
   /* Rebuildable so double-click can re-filter without render() tearing the whole
      view down. Drops any focus fingerprint that no longer exists in the data,
@@ -761,7 +764,7 @@ function initGraph(canvas){
         return true;
       });
     // every index-keyed local is now stale
-    drag=null; down=null; hover=null; lastClick=null; hideTip();
+    drag=null; down=null; hover=null; lastClick=prevClick=null; hideTip();
     alpha=Math.max(alpha,hub?.75:.35);
     paintChrome();
   }
@@ -896,8 +899,19 @@ function initGraph(canvas){
   redrawGraph=build;   // let the drawer drive focus
   build();
 
+  // Window resized, or the drawer opened at a width that reflows the card: keep
+  // x positions proportional so nothing jumps, then re-fit the bitmap.
+  const ro=new ResizeObserver(()=>{
+    const w=canvas.clientWidth; if(!w||w===W)return;
+    const k=w/W; W=w; fit();
+    RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
+    for(const n of N) n.x*=k;
+    alpha=Math.max(alpha,.15);
+  });
+  ro.observe(canvas);
+
   (function loop(){
-    if(!canvas.isConnected){ redrawGraph=null; return; } // view navigated away — stop the sim, free the frame
+    if(!canvas.isConnected){ redrawGraph=null; ro.disconnect(); return; } // view navigated away — stop the sim, free the frame
     if(alpha>.02||drag!==null){tick(); alpha*=.996;}
     draw();
     for(const n of N) graphPos[n.fingerprint]={x:n.x,y:n.y}; // survive the 60s rebuild
@@ -920,8 +934,9 @@ function initGraph(canvas){
     const p=pos(ev), moved=down?Math.hypot(p.x-down.x,p.y-down.y):99;
     const i=drag; drag=null; down=null;
     if(moved<4){
-      lastClick={i,t:performance.now()};   // dblclick below verifies same node
+      prevClick=lastClick; lastClick={i,t:performance.now()};   // dblclick below verifies both clicks hit this node
       openAgent(N[i].name,N[i].fingerprint); // a click, not a drag → open the detail drawer
+      letSecondClickThrough();
     }
   };
   /* Native dblclick rather than a delay timer on single click: the first click
@@ -933,12 +948,14 @@ function initGraph(canvas){
     if(ev.button!==0)return;
     ev.preventDefault();
     const j=at(pos(ev));
-    if(j===null||!lastClick||lastClick.i!==j||performance.now()-lastClick.t>900)return;
+    // The second click's mouseup has already overwritten lastClick, so the
+    // same-node check must look at both clicks, not just the latest.
+    if(j===null||!lastClick||!prevClick||lastClick.i!==j||prevClick.i!==j||lastClick.t-prevClick.t>900)return;
     const fp=N[j].fingerprint;
-    lastClick=null;
+    lastClick=prevClick=null;
     focusAgent(fp);
   };
-  canvas.onmouseleave=()=>{hover=null;drag=null;down=null;hideTip();canvas.style.cursor='grab';};
+  canvas.onmouseleave=()=>{hover=null;drag=null;down=null;lastClick=prevClick=null;hideTip();canvas.style.cursor='grab';};
 }
 
 /* ── RELATIONSHIPS TABLE — how each agent pair shares data ─────────────── */
@@ -1082,6 +1099,17 @@ const drawer=$('#drawer'), scrim=$('#scrim');
 scrim.onclick=closeDrawer;
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDrawer();});
 function closeDrawer(){drawer.classList.remove('on');scrim.classList.remove('on');drawerKey=null;}
+/* The first click of a double-click opens the drawer, and the drawer plus its
+   full-viewport scrim slide over the canvas — so the second click would land on
+   them (and the scrim would close what the first click opened). Let the pointer
+   pass through for the double-click window; nothing targets a drawer that is
+   still sliding in. */
+let passT=null;
+function letSecondClickThrough(){
+  drawer.style.pointerEvents='none'; scrim.style.pointerEvents='none';
+  clearTimeout(passT);
+  passT=setTimeout(()=>{drawer.style.pointerEvents='';scrim.style.pointerEvents='';},450);
+}
 /* Two guards, both load-bearing once double-click exists:
    - drawerSeq: openAgent awaits a fetch then overwrites innerHTML unconditionally.
      Open A then B and A's slower reply would land on top of B. Only the newest
