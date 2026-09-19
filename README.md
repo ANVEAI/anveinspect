@@ -23,6 +23,9 @@ operate the fleet.
   <img src="docs/assets/dashboard-overview.jpg" alt="AnveInspect dashboard — fleet overview" width="49%">
   <img src="docs/assets/dashboard-lineage.jpg" alt="AnveInspect dashboard — agent lineage graph" width="49%">
 </p>
+<p align="center">
+  <img src="docs/assets/dashboard-mindmap.jpg" alt="AnveInspect dashboard — mindmap: invoice-processing-agent unfolded three levels deep beside its detail drawer" width="98.5%">
+</p>
 <p align="center"><sub>Sample fleet shown — illustrative data, not a real customer's.</sub></p>
 
 ```bash
@@ -101,8 +104,11 @@ Six views (`npm run dash` → http://localhost:4177):
 - **Activity** — live chronological feed of runs across every platform.
 - **Lineage** — the **agent relationship graph** (interactive force layout: who
   spawns whom across all executions, node size = run volume, edge weight + arrow =
-  spawn direction and count, drag/hover/click-through) plus the spawn-tree explorer
-  for single executions (click a root to expand, with subtree tokens and descendant
+  spawn direction and count, drag/hover/click-through). Double-click any agent to
+  open it as a **mindmap**: the agents it spawns unfold to its right, the agents
+  that spawn it to its left, a level at a time (⊕ badges say how many more);
+  double-click again to fold a branch away. Plus the spawn-tree explorer for
+  single executions (click a root to expand, with subtree tokens and descendant
   counts).
 - **Attention** — open alerts (with Ack) + stale agents.
 - **Connectors** — per-platform plug-and-play health.

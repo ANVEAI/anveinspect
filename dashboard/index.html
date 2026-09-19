@@ -776,7 +776,10 @@ function agentGraphCard(){
   return c;
 }
 function initGraph(canvas){
-  let W=canvas.clientWidth||900, H=470;
+  let W=canvas.clientWidth||900;
+  const fleetH=()=>Math.max(470,Math.min(720,300+GRAPH.nodes.length*12)); // 15 agents → 480, 30 → 660
+  let H=fleetH();
+  canvas.style.height=H+'px';
   const dpr=window.devicePixelRatio||1;
   const ctx=canvas.getContext('2d');
   const BG=getComputedStyle(canvas).backgroundColor||'#0f1319';
@@ -829,7 +832,7 @@ function initGraph(canvas){
     drag=null; down=null; hover=null; badgeDown=null; badgeHover=null; lastClick=prevClick=null; hideTip();
     lastOccl=occlusion();
     T=info?layoutTree():null;
-    if(!T&&H!==470){ H=470; canvas.style.height=''; fit(); }
+    if(!T&&H!==fleetH()){ H=fleetH(); canvas.style.height=H+'px'; fit(); }
     alpha=Math.max(alpha,.35);
     paintChrome();
   }
@@ -845,7 +848,7 @@ function initGraph(canvas){
     const R=root.kids.filter(k=>byFp(k).side==='right'), L=root.kids.filter(k=>byFp(k).side==='left');
     const hR=R.reduce((s,k)=>s+size(k),0), hL=L.reduce((s,k)=>s+size(k),0);
     let DR=0, DL=0; for(const n of N){ if(n.side==='right') DR=Math.max(DR,n.depth); if(n.side==='left') DL=Math.max(DL,n.depth); }
-    const need=Math.max(470,Math.min(900,Math.max(hR,hL)+80));
+    const need=Math.max(470,Math.min(900,Math.max(hR,hL)+80)); // sized to the tree, not the fleet
     if(need!==H){ H=need; canvas.style.height=H+'px'; fit(); }
     const Wv=W-lastOccl;
     const COL=Math.max(COL_MIN,Math.min(COL_MAX,(Wv-150)/Math.max(1,DL+DR)));
@@ -918,10 +921,12 @@ function initGraph(canvas){
         ctx.fillStyle=hi?'rgba(232,237,244,.95)':'rgba(154,167,184,.7)';
         ctx.font='10px ui-monospace,monospace';
         const vol=hi&&e.dataDown!=null?`  ${fmt(e.dataDown)}ch↓ ${fmt(e.dataUp)}ch↑`:'';
-        // on the map the lines fan out from one bubble, so labels sit nearer
-        // the far end where the lines have separated
-        const k=T?.62:.5;
-        ctx.fillText(e.spawns+'×'+vol,x1+(x2-x1)*k+5,y1+(y2-y1)*k-5);
+        if(T){ // lines fan out from one bubble: sit the label near the far end,
+               // lifted off the line, clear of the name under the next bubble
+          ctx.textAlign='center';
+          ctx.fillText(e.spawns+'×'+vol,x1+(x2-x1)*.7+dy*9,y1+(y2-y1)*.7-dx*9+3);
+          ctx.textAlign='left';
+        } else ctx.fillText(e.spawns+'×'+vol,(x1+x2)/2+5,(y1+y2)/2-5);
       }
     }
     N.forEach((n,i)=>{
