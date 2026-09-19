@@ -213,6 +213,8 @@ tbody tr:last-child td{border-bottom:none}
 .gcrumb:hover{border-color:var(--info);color:var(--txt)}
 .gsep{color:var(--faint);font-size:11px}
 .gcur{color:var(--txt);font-size:11.5px;font-weight:600;padding:3px 4px}
+.gcount{color:var(--faint);font-size:11px;padding-left:2px}
+.gcrumb.gright{margin-left:auto}
 .dw-rels{border:1px solid var(--line-soft);border-radius:var(--radius-sm);overflow:hidden}
 .dw-rel{display:flex;align-items:center;gap:8px;padding:9px 11px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:12.5px}
 .dw-rel:last-child{border-bottom:none}
@@ -315,7 +317,7 @@ const routes=['overview','agents','activity','lineage','attention','connectors']
 const titles={overview:'Overview',agents:'Agents',activity:'Activity',lineage:'Lineage',attention:'Attention',connectors:'Connectors'};
 function currentRoute(){const h=location.hash.replace('#','');return routes.includes(h)?h:'overview';}
 function go(r){location.hash=r;}
-window.addEventListener('hashchange',()=>{graphFocus.length=0;redrawGraph=null;render();});
+window.addEventListener('hashchange',()=>{graphRoot=null;graphOpen.clear();redrawGraph=null;render();});
 
 function setActive(){
   const r=currentRoute();
@@ -659,40 +661,106 @@ function treeNode(n,depth){
   return wrap;
 }
 
-/* ── AGENT RELATIONSHIP GRAPH (canvas force layout, zero deps) ─────────── */
+/* ── AGENT RELATIONSHIP GRAPH (canvas, zero deps) ────────────────────────────
+   Two readings on one canvas:
+   · the whole fleet as a force layout (every agent, the heaviest edges), and
+   · a mindmap grown from one agent: double-click a bubble, or tap its ⊕, and
+     the agents it spawns unfold to its right, the agents that spawn it unfold
+     to its left. Every revealed bubble can unfold again, so a chain of
+     subagents opens a level at a time; double-click again to fold it away. */
 const GRAPH_COLORS={claude_code:'#3ecf8e',codex:'#5b9dff',openclaw:'#ffb454',hermes:'#c792ea',bedrock:'#ff9d76',vertex:'#7ee0d2',foundry:'#8fa8ff',cloudflare:'#f6821f'};
 
-/* Focus state lives at module level on purpose. load() runs every 60s and calls
-   render(), which wipes #view — so anything kept inside initGraph's closure is
-   destroyed twice a minute and would eject the user mid-read. Keyed by
-   fingerprint, never by array index: indices are invalidated on every rebuild.
-   graphPos also survives, which incidentally stops the layout re-scrambling
-   from the circle seed on every refresh. */
-const graphFocus=[];            // [] = full graph; else a drill path of fingerprints
+/* Mindmap state lives at module level on purpose. load() runs every 60s and
+   calls render(), which wipes #view — so anything kept inside initGraph's
+   closure is destroyed twice a minute and would eject the user mid-read.
+   Keyed by fingerprint, never by array index: indices are invalidated on
+   every rebuild. graphPos also survives, which incidentally stops the layout
+   re-scrambling from the circle seed on every refresh. */
+let graphRoot=null;             // null = whole fleet; else the agent the mindmap grows from
+const graphOpen=new Set();      // unfolded fingerprints
 const graphPos={};              // fingerprint -> {x,y}
-const MAX_FOCUS_NEIGHBOURS=12;  // beyond this the ring can't be labelled legibly
-let redrawGraph=null;           // set by initGraph so the drawer can drive focus
+const MAX_FOCUS_NEIGHBOURS=12;  // per unfold — past this a column cannot be labelled legibly
+let redrawGraph=null;           // set by initGraph so the drawer can drive the map
 
-function focusAgent(fp){
-  if(!GRAPH||!GRAPH.nodes.some(n=>n.fingerprint===fp))return;
-  const at=graphFocus.indexOf(fp);
-  if(at>=0) graphFocus.length=at+1;        // re-entering an ancestor truncates, never cycles
-  else if(graphFocus[graphFocus.length-1]!==fp) graphFocus.push(fp);
-  if(graphFocus.length>6) graphFocus.splice(0,graphFocus.length-6);
-  if(redrawGraph) redrawGraph();
-  else if(currentRoute()==='lineage') render();
+const edgesOut=fp=>GRAPH.edges.filter(e=>e.source===fp&&e.target!==fp).sort((a,b)=>b.spawns-a.spawns).map(e=>e.target).filter((v,i,a)=>a.indexOf(v)===i);
+const edgesIn=fp=>GRAPH.edges.filter(e=>e.target===fp&&e.source!==fp).sort((a,b)=>b.spawns-a.spawns).map(e=>e.source).filter((v,i,a)=>a.indexOf(v)===i);
+
+/* The visible set: breadth-first from the root through every unfolded agent.
+   Right of the root only children unfold, left of it only parents, so arrows
+   always read left→right and the map never folds back on itself. Each entry
+   records who revealed it (layout and collapse follow that) and how many more
+   agents unfolding it would show (the ⊕ badge). */
+function mindmapSet(){
+  const info=new Map();
+  info.set(graphRoot,{side:'root',depth:0,via:null,kids:[],hidden:0,capped:0,expanded:graphOpen.has(graphRoot)});
+  const q=[graphRoot];
+  while(q.length){
+    const fp=q.shift(), me=info.get(fp);
+    if(!me.expanded) continue;
+    const dirs=me.side==='root'?[['right',edgesOut(fp)],['left',edgesIn(fp)]]:[[me.side,me.side==='right'?edgesOut(fp):edgesIn(fp)]];
+    for(const [side,cand] of dirs){
+      const fresh=cand.filter(nb=>!info.has(nb));
+      const take=fresh.slice(0,MAX_FOCUS_NEIGHBOURS);
+      me.capped+=fresh.length-take.length;
+      for(const nb of take){ info.set(nb,{side,depth:me.depth+1,via:fp,kids:[],hidden:0,capped:0,expanded:graphOpen.has(nb)}); me.kids.push(nb); q.push(nb); }
+    }
+  }
+  // Counted once the set is final, so an agent already on the map through
+  // another branch is never promised as "one more".
+  for(const [fp,me] of info){
+    if(me.expanded) continue;
+    const cand=me.side==='left'?edgesIn(fp):me.side==='right'?edgesOut(fp):[...edgesOut(fp),...edgesIn(fp)];
+    me.hidden=cand.filter((v,i,a)=>a.indexOf(v)===i&&!info.has(v)).length;
+  }
+  return info;
 }
-function clearFocus(){ graphFocus.length=0; if(redrawGraph)redrawGraph(); }
-
-/* The visible set when focused: the hub, its parents, its children, and every
-   edge among that set — so sibling links show, not just the star. */
-function focusSet(fp){
-  const keep=new Set([fp]);
-  const rel=GRAPH.edges.filter(e=>e.source===fp||e.target===fp)
-    .sort((a,b)=>b.spawns-a.spawns).slice(0,MAX_FOCUS_NEIGHBOURS);
-  rel.forEach(e=>keep.add(e.source===fp?e.target:e.source));
-  const hidden=GRAPH.edges.filter(e=>e.source===fp||e.target===fp).length-rel.length;
-  return {keep, hidden};
+function graphRebuild(){ if(redrawGraph) redrawGraph(); else if(currentRoute()==='lineage') render(); }
+function startMindmap(fp){ graphRoot=fp; graphOpen.clear(); graphOpen.add(fp); graphRebuild(); }
+function leaveMindmap(){ graphRoot=null; graphOpen.clear(); graphRebuild(); }
+/* Unfold or fold one agent. Folding drops everything that was only reachable
+   through it, unfolded or not, so the map never keeps orphans. Returns false
+   when there was nothing to do, so the caller can say why. */
+function toggleExpand(fp){
+  if(!GRAPH||!GRAPH.nodes.some(n=>n.fingerprint===fp)) return false;
+  if(!graphRoot){ startMindmap(fp); return true; }
+  if(graphOpen.has(fp)){
+    graphOpen.delete(fp);
+    const info=mindmapSet();
+    for(const o of [...graphOpen]) if(!info.has(o)) graphOpen.delete(o);
+    graphRebuild(); return true;
+  }
+  const me=mindmapSet().get(fp);
+  if(!me||!me.hidden) return false;
+  graphOpen.add(fp); graphRebuild(); return true;
+}
+/* Shortest outward chain from one agent to another under the map's rule —
+   children only to the right, parents only to the left. */
+function graphPath(from,to){
+  const prev=new Map([[from,null]]); const q=[[from,'root']];
+  while(q.length){
+    const [fp,side]=q.shift();
+    if(fp===to){ const p=[]; for(let c=fp;c!==null;c=prev.get(c)) p.unshift(c); return p; }
+    const next=[]; if(side!=='left') for(const nb of edgesOut(fp)) next.push([nb,'right']);
+    if(side!=='right') for(const nb of edgesIn(fp)) next.push([nb,'left']);
+    for(const [nb,s] of next) if(!prev.has(nb)){ prev.set(nb,fp); q.push([nb,s]); }
+  }
+  return null;
+}
+/* Drawer → map: put fp on the map and unfold it. Unreachable from the current
+   root (or capped out of view) means it becomes the root instead. */
+function revealAgent(fp){
+  if(!GRAPH||!GRAPH.nodes.some(n=>n.fingerprint===fp)) return;
+  if(!graphRoot){ startMindmap(fp); return; }
+  let info=mindmapSet();
+  if(!info.has(fp)){
+    const path=graphPath(graphRoot,fp);
+    if(!path){ startMindmap(fp); return; }
+    for(const step of path) graphOpen.add(step);
+    info=mindmapSet();
+    if(!info.has(fp)){ startMindmap(fp); return; }
+  }
+  if(!graphOpen.has(fp)&&info.get(fp).hidden) graphOpen.add(fp);
+  graphRebuild();
 }
 
 function agentGraphCard(){
@@ -708,54 +776,48 @@ function agentGraphCard(){
   return c;
 }
 function initGraph(canvas){
-  let W=canvas.clientWidth||900; const H=470;
+  let W=canvas.clientWidth||900, H=470;
   const dpr=window.devicePixelRatio||1;
   const ctx=canvas.getContext('2d');
+  const BG=getComputedStyle(canvas).backgroundColor||'#0f1319';
   // Size the bitmap to the CSS box. The card is fluid but a bitmap is not: left
   // stretched, labels smear and pos() no longer maps onto node coordinates.
   function fit(){ canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); }
   fit();
   const maxRuns=Math.max(1,...GRAPH.nodes.map(n=>n.runs));
-  let RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
-  let N=[], E=[], idx={}, selfLoops={}, hubIdx=null, hiddenNeighbours=0;
-  let alpha=1, drag=null, hover=null, down=null, lastClick=null, prevClick=null;
+  const ROW=54, COL_MAX=180, COL_MIN=128;   // tree rows fit the largest bubble plus its label
+  let N=[], E=[], idx={}, selfLoops={}, rootIdx=null, T=null, capped=0, lastOccl=0;
+  let alpha=1, drag=null, hover=null, down=null, lastClick=null, prevClick=null, badgeDown=null, badgeHover=null;
 
-  /* Rebuildable so double-click can re-filter without render() tearing the whole
-     view down. Drops any focus fingerprint that no longer exists in the data,
-     otherwise N[undefined] would crash tick(). */
+  /* What the drawer covers, in canvas px: the map lays itself out beside the
+     drawer rather than under it. Past ~55% the drawer covers the canvas
+     outright (narrow windows) and pretending otherwise only squashes the map. */
+  function occlusion(){
+    if(!drawer.classList.contains('on')) return 0;
+    const o=Math.max(0,canvas.getBoundingClientRect().right-(window.innerWidth-560));
+    return o>W*.55?0:o;
+  }
+
+  /* Rebuildable so unfolding can re-filter without render() tearing the whole
+     view down. Drops a root that no longer exists in the data, otherwise
+     N[undefined] would crash the layout. */
   function build(){
-    while(graphFocus.length && !GRAPH.nodes.some(n=>n.fingerprint===graphFocus[graphFocus.length-1])) graphFocus.pop();
-    const hub=graphFocus[graphFocus.length-1]||null;
-    let keep=null; hiddenNeighbours=0;
-    if(hub){ const f=focusSet(hub); keep=f.keep; hiddenNeighbours=f.hidden; }
-    const nodes=keep?GRAPH.nodes.filter(n=>keep.has(n.fingerprint)):GRAPH.nodes;
-
-    // Role-biased seeding: parents to the left arc, children to the right, so the
-    // arrow direction is readable before reading a single label.
-    const kidsOf=new Set(hub?GRAPH.edges.filter(e=>e.source===hub).map(e=>e.target):[]);
-    let ai=0;
+    if(graphRoot&&!GRAPH.nodes.some(n=>n.fingerprint===graphRoot)){ graphRoot=null; graphOpen.clear(); }
+    const info=graphRoot?mindmapSet():null;
+    const nodes=info?GRAPH.nodes.filter(n=>info.has(n.fingerprint)):GRAPH.nodes;
+    capped=0; if(info) for(const m of info.values()) capped+=m.capped;
     N=nodes.map((n,i)=>{
-      const cached=graphPos[n.fingerprint];
+      const m=info?info.get(n.fingerprint):null, cached=graphPos[n.fingerprint];
       let x,y;
-      if(hub&&n.fingerprint===hub){ x=W/2; y=H/2; }
-      else if(cached&&!hub){ x=cached.x; y=cached.y; }
-      else if(hub){
-        const total=Math.max(1,nodes.length-1);
-        const span=kidsOf.has(n.fingerprint)?[-1.4,1.4]:[1.75,4.53];
-        const t=total===1?.5:(ai++)/(total-1);
-        const a=span[0]+(span[1]-span[0])*t;
-        // ±6px jitter is required, not cosmetic: two exactly-coincident nodes
-        // produce a zero unit vector and can never push each other apart.
-        x=W/2+Math.cos(a)*RING+(Math.random()-.5)*12;
-        y=H/2+Math.sin(a)*RING+(Math.random()-.5)*12;
-      } else {
-        x=W/2+Math.cos(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33;
-        y=H/2+Math.sin(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33;
-      }
-      return {...n,x,y,vx:0,vy:0,r:7+Math.round(14*Math.sqrt(n.runs/maxRuns))};
+      if(cached){ x=cached.x; y=cached.y; }
+      else if(m&&m.via&&graphPos[m.via]){ x=graphPos[m.via].x; y=graphPos[m.via].y; } // grows out of the agent that revealed it
+      else if(m){ x=W/2; y=H/2; }
+      else { x=W/2+Math.cos(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33; y=H/2+Math.sin(i/nodes.length*2*Math.PI)*Math.min(W,H)*.33; }
+      return {...n,x,y,vx:0,vy:0,pinned:false,r:7+Math.round(14*Math.sqrt(n.runs/maxRuns)),
+        side:m?m.side:null,depth:m?m.depth:0,kids:m?m.kids:[],expanded:m?m.expanded:false,hidden:m?m.hidden:0};
     });
     idx={}; N.forEach((n,i)=>idx[n.fingerprint]=i);
-    hubIdx=hub!=null&&idx[hub]!=null?idx[hub]:null;
+    rootIdx=graphRoot&&idx[graphRoot]!=null?idx[graphRoot]:null;
     selfLoops={};
     E=GRAPH.edges.map(e=>({s:idx[e.source],t:idx[e.target],spawns:e.spawns,tokens:e.tokens,dataDown:e.dataDown,dataUp:e.dataUp,w:1+Math.min(4.5,Math.log2(e.spawns+1)*.9)}))
       .filter(e=>{
@@ -764,9 +826,48 @@ function initGraph(canvas){
         return true;
       });
     // every index-keyed local is now stale
-    drag=null; down=null; hover=null; lastClick=prevClick=null; hideTip();
-    alpha=Math.max(alpha,hub?.75:.35);
+    drag=null; down=null; hover=null; badgeDown=null; badgeHover=null; lastClick=prevClick=null; hideTip();
+    lastOccl=occlusion();
+    T=info?layoutTree():null;
+    if(!T&&H!==470){ H=470; canvas.style.height=''; fit(); }
+    alpha=Math.max(alpha,.35);
     paintChrome();
+  }
+
+  /* Tidy tree in both directions from the root: an agent sits centred on the
+     block of what it revealed, blocks stack without gaps, and the canvas grows
+     tall enough for the deeper side. Returns fingerprint -> target position;
+     the frame loop eases bubbles there so unfolding reads as growth. */
+  function layoutTree(){
+    const byFp=fp=>N[idx[fp]], sizes={};
+    const size=fp=>{ const n=byFp(fp); if(!n.kids.length) return sizes[fp]=ROW; let s=0; for(const k of n.kids) s+=size(k); return sizes[fp]=s; };
+    const root=N[rootIdx];
+    const R=root.kids.filter(k=>byFp(k).side==='right'), L=root.kids.filter(k=>byFp(k).side==='left');
+    const hR=R.reduce((s,k)=>s+size(k),0), hL=L.reduce((s,k)=>s+size(k),0);
+    let DR=0, DL=0; for(const n of N){ if(n.side==='right') DR=Math.max(DR,n.depth); if(n.side==='left') DL=Math.max(DL,n.depth); }
+    const need=Math.max(470,Math.min(900,Math.max(hR,hL)+80));
+    if(need!==H){ H=need; canvas.style.height=H+'px'; fit(); }
+    const Wv=W-lastOccl;
+    const COL=Math.max(COL_MIN,Math.min(COL_MAX,(Wv-150)/Math.max(1,DL+DR)));
+    const cx=Math.max(60,75+DL*COL+(Wv-150-(DL+DR)*COL)/2), cy=H/2;
+    const out={[graphRoot]:{x:cx,y:cy}};
+    const place=(fp,x,top)=>{
+      const h=sizes[fp], n=byFp(fp); out[fp]={x,y:top+h/2};
+      const dir=n.side==='left'?-1:1; let c=top;
+      for(const k of n.kids){ place(k,x+dir*COL,c); c+=sizes[k]; }
+    };
+    let c=cy-hR/2; for(const k of R){ place(k,cx+COL,c); c+=sizes[k]; }
+    c=cy-hL/2; for(const k of L){ place(k,cx-COL,c); c+=sizes[k]; }
+    return out;
+  }
+  function tickTree(){
+    for(const n of N){
+      if(n.pinned) continue;
+      const t=T[n.fingerprint]; if(!t) continue;
+      const dx=t.x-n.x, dy=t.y-n.y;
+      if(Math.abs(dx)+Math.abs(dy)<.4){ n.x=t.x; n.y=t.y; continue; }
+      n.x+=dx*.16; n.y+=dy*.16;
+    }
   }
   function tick(){
     for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){ // O(n²) repulsion — edges are capped, this stays small
@@ -779,18 +880,8 @@ function initGraph(canvas){
       const f=(d-(120+a.r+b.r))*.012; dx/=d; dy/=d;
       a.vx+=dx*f; a.vy+=dy*f; b.vx-=dx*f; b.vy-=dy*f;
     }
-    // The drawer covers the right ~560px, so when focused shift the ring centre
-    // left to keep the neighbourhood visible beside it rather than under it.
-    const occl=drawer.classList.contains('on')?Math.max(0,canvas.getBoundingClientRect().right-(window.innerWidth-560)):0;
-    const cx=hubIdx!==null?Math.max(RING+40,W/2-occl/2):W/2;
     for(const n of N){ // gravity + damping + bounds
-      if(hubIdx!==null){
-        // ring gravity: centre-pull collapses 5 nodes into a knot, since the
-        // repulsion term is short-range and effectively gone past ~100px.
-        const dx=n.x-cx, dy=n.y-H/2, d=Math.hypot(dx,dy)||1;
-        const k=(RING-d)*.010;
-        n.vx+=dx/d*k; n.vy+=dy/d*k;
-      } else { n.vx+=(W/2-n.x)*.004; n.vy+=(H/2-n.y)*.004; }
+      n.vx+=(W/2-n.x)*.004; n.vy+=(H/2-n.y)*.004;
       n.vx*=.85; n.vy*=.85;
       n.x=Math.max(n.r+6,Math.min(W-n.r-6,n.x+n.vx*alpha));
       n.y=Math.max(n.r+6,Math.min(H-n.r-24,n.y+n.vy*alpha));
@@ -806,13 +897,9 @@ function initGraph(canvas){
         if(Math.abs(gap)<need){const push=(need-Math.abs(gap))*.18, s=gap>=0?1:-1; a.x-=s*push; b.x+=s*push;}
       }
     }
-    // Pin the hub last — the separation pass above would otherwise shove it
-    // off-centre and the hub-and-spoke reading would be lost.
-    if(hubIdx!==null&&drag!==hubIdx){
-      const occl=drawer.classList.contains('on')?Math.max(0,canvas.getBoundingClientRect().right-(window.innerWidth-560)):0;
-      const h=N[hubIdx]; h.x=Math.max(RING+40,W/2-occl/2); h.y=H/2; h.vx=0; h.vy=0;
-    }
   }
+  const badgeAt=n=>({x:n.x+n.r*.7+4,y:n.y-n.r*.7-4,r:9});
+  const hasBadge=n=>!!T&&(n.hidden>0||(n.expanded&&n.kids.length>0));
   function draw(){
     ctx.clearRect(0,0,W,H);
     for(const e of E){
@@ -825,30 +912,33 @@ function initGraph(canvas){
       ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
       ctx.fillStyle=ctx.strokeStyle; // arrowhead: direction = who spawned whom
       ctx.beginPath(); ctx.moveTo(x2+dx*8,y2+dy*8); ctx.lineTo(x2-dy*4,y2+dx*4); ctx.lineTo(x2+dy*4,y2-dx*4); ctx.closePath(); ctx.fill();
-      // when focused there are few enough edges to always label, and the count
+      // on the map there are few enough edges to always label, and the count
       // is the payload rather than decoration
-      if(e.spawns>=5||hi||hubIdx!==null){
+      if(e.spawns>=5||hi||T){
         ctx.fillStyle=hi?'rgba(232,237,244,.95)':'rgba(154,167,184,.7)';
         ctx.font='10px ui-monospace,monospace';
         const vol=hi&&e.dataDown!=null?`  ${fmt(e.dataDown)}ch↓ ${fmt(e.dataUp)}ch↑`:'';
-        ctx.fillText(e.spawns+'×'+vol,(x1+x2)/2+5,(y1+y2)/2-5);
+        // on the map the lines fan out from one bubble, so labels sit nearer
+        // the far end where the lines have separated
+        const k=T?.62:.5;
+        ctx.fillText(e.spawns+'×'+vol,x1+(x2-x1)*k+5,y1+(y2-y1)*k-5);
       }
     }
     N.forEach((n,i)=>{
       const col=GRAPH_COLORS[n.vendor]||'#9aa7b8';
-      const isHub=i===hubIdx;
-      if(isHub){ // soft halo so the focused agent reads as the anchor
+      const isRoot=i===rootIdx;
+      if(isRoot){ // soft halo so the root reads as the anchor
         ctx.beginPath(); ctx.arc(n.x,n.y,n.r+6,0,6.2832);
         ctx.strokeStyle=col+'44'; ctx.lineWidth=2; ctx.stroke();
       }
       ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,6.2832);
-      ctx.fillStyle=col+(isHub?'55':hover===i?'40':'22'); ctx.fill();
-      ctx.lineWidth=isHub?3:hover===i?2.4:1.5; ctx.strokeStyle=col; ctx.stroke();
-      if(selfLoops[i]){ // "spawns its own kind" loop arc at the node's top-right
-        ctx.beginPath(); ctx.arc(n.x+n.r*.85,n.y-n.r*.85,5.5,-.6,4.2);
+      ctx.fillStyle=col+(isRoot?'55':hover===i?'40':'22'); ctx.fill();
+      ctx.lineWidth=isRoot?3:hover===i?2.4:1.5; ctx.strokeStyle=col; ctx.stroke();
+      if(selfLoops[i]){ // "spawns its own kind" loop arc at the node's top-left (the badge owns the top-right)
+        ctx.beginPath(); ctx.arc(n.x-n.r*.85,n.y-n.r*.85,5.5,-.95,4.9);
         ctx.lineWidth=1.4; ctx.strokeStyle=col; ctx.stroke();
-        ctx.fillStyle='rgba(154,167,184,.85)'; ctx.font='9px ui-monospace,monospace';
-        ctx.fillText(selfLoops[i]+'×',n.x+n.r*.85+8,n.y-n.r*.85-3);
+        ctx.fillStyle='rgba(154,167,184,.85)'; ctx.font='9px ui-monospace,monospace'; ctx.textAlign='right';
+        ctx.fillText(selfLoops[i]+'×',n.x-n.r*.85-8,n.y-n.r*.85-3); ctx.textAlign='left';
       }
       ctx.fillStyle=hover===i?'#e8edf4':'#9aa7b8';
       ctx.font=(hover===i?'600 ':'')+'11px ui-monospace,monospace';
@@ -856,32 +946,39 @@ function initGraph(canvas){
       const label=n.name.length>18?n.name.slice(0,17)+'…':n.name;
       ctx.fillText(label,n.x,n.y+n.r+13);
       ctx.textAlign='left';
+      if(hasBadge(n)){ // ⊕ how many more this would unfold · ⊖ fold it away
+        const b=badgeAt(n), on=badgeHover===i, fold=n.expanded&&n.kids.length>0;
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,6.2832);
+        ctx.fillStyle=on?col:BG; ctx.fill(); ctx.lineWidth=1.3; ctx.strokeStyle=col; ctx.stroke();
+        ctx.fillStyle=on?BG:col; ctx.font='600 9.5px ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(fold?'−':(n.hidden>99?'99+':'+'+n.hidden),b.x,b.y+.5);
+        ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      }
     });
   }
   /* Header, breadcrumbs and legend all describe the *current* node set, so they
      are repainted on every build rather than written once at card creation. */
+  let flashT=null;
+  function flash(msg){ const m=document.getElementById('graphMeta'); if(!m) return; m.textContent=msg; clearTimeout(flashT); flashT=setTimeout(paintChrome,2000); }
   function paintChrome(){
-    const hub=hubIdx!==null?N[hubIdx]:null;
+    clearTimeout(flashT);
+    const root=rootIdx!==null?N[rootIdx]:null;
     const meta=document.getElementById('graphMeta');
-    if(meta) meta.textContent = hub
-      ? `focused on ${hub.name} · ${E.length} relationship${E.length===1?'':'s'} · ${GRAPH.nodes.length-N.length} agents hidden${hiddenNeighbours?` · ${hiddenNeighbours} more neighbours not shown`:''}${GRAPH.truncated?' · graph capped, may be incomplete':''}`
+    if(meta) meta.textContent = root
+      ? `mindmap from ${root.name} · ${N.length} of ${GRAPH.nodes.length} agents · ${E.length} relationship${E.length===1?'':'s'}${capped?` · ${capped} more capped at ${MAX_FOCUS_NEIGHBOURS} per agent, all listed in the drawer`:''}${GRAPH.truncated?' · graph capped, may be incomplete':''}`
       : `${GRAPH.nodes.length} agents · ${GRAPH.edges.length} relationships${GRAPH.truncated?' · heaviest shown':''} · node size = run volume · arrow = spawns`;
-    canvas.classList.toggle('focused',!!hub);
+    canvas.classList.toggle('focused',!!root);
 
     const cr=document.getElementById('graphCrumbs');
     if(cr){
-      cr.style.display=graphFocus.length?'flex':'none';
-      if(graphFocus.length){
-        const nm={}; GRAPH.nodes.forEach(n=>nm[n.fingerprint]=n.name);
-        cr.innerHTML=`<button class="gcrumb" data-i="-1">← All agents</button>`+
-          graphFocus.map((fp,i)=>`<span class="gsep">›</span>${i===graphFocus.length-1
-            ?`<span class="gcur">${esc(nm[fp]||fp.slice(0,10))}</span>`
-            :`<button class="gcrumb" data-i="${i}">${esc(nm[fp]||fp.slice(0,10))}</button>`}`).join('');
-        cr.querySelectorAll('.gcrumb').forEach(b=>b.onclick=()=>{
-          const i=+b.dataset.i;
-          if(i<0) graphFocus.length=0; else graphFocus.length=i+1;
-          build();
-        });
+      cr.style.display=root?'flex':'none';
+      if(root){
+        const branches=[...graphOpen].filter(f=>f!==graphRoot).length;
+        cr.innerHTML=`<button class="gcrumb" data-act="all">← All agents</button><span class="gsep">›</span><span class="gcur">${esc(root.name)}</span>`+
+          `<span class="gcount">${graphOpen.size} unfolded · ${N.length} shown · ${GRAPH.nodes.length-N.length} hidden</span>`+
+          (branches?`<button class="gcrumb gright" data-act="fold">Fold all</button>`:'');
+        cr.querySelector('[data-act=all]').onclick=leaveMindmap;
+        const fb=cr.querySelector('[data-act=fold]'); if(fb) fb.onclick=()=>{graphOpen.clear();graphOpen.add(graphRoot);build();};
       }
     }
     const lg=document.getElementById('graphLegend');
@@ -891,38 +988,50 @@ function initGraph(canvas){
         const s=el('span','gl'); s.innerHTML=`<i style="background:${GRAPH_COLORS[v]||'#9aa7b8'}"></i>${esc(VENDOR_LABEL[v]||v)}`; lg.appendChild(s);
       });
       const hint=el('span','gl-hint');
-      hint.textContent=hubIdx!==null?'double-click a neighbour to drill in · drag to arrange':'drag to arrange · click for details · double-click to focus';
+      hint.textContent=root?'double-click or tap ⊕ to unfold · again to fold · click for details · drag to nudge':'drag to arrange · click for details · double-click to open as a mindmap';
       lg.appendChild(hint);
     }
   }
 
-  redrawGraph=build;   // let the drawer drive focus
+  redrawGraph=build;   // let the drawer drive the map
   build();
 
-  // Window resized, or the drawer opened at a width that reflows the card: keep
-  // x positions proportional so nothing jumps, then re-fit the bitmap.
+  // Window resized, or the drawer opened at a width that reflows the card: the
+  // map re-lays itself out; the fleet view keeps x positions proportional so
+  // nothing jumps. Either way the bitmap is re-fitted.
   const ro=new ResizeObserver(()=>{
     const w=canvas.clientWidth; if(!w||w===W)return;
     const k=w/W; W=w; fit();
-    RING=Math.max(120,Math.min(190,Math.min(W,H)*.33));
-    for(const n of N) n.x*=k;
+    if(T) T=layoutTree(); else for(const n of N) n.x*=k;
     alpha=Math.max(alpha,.15);
   });
   ro.observe(canvas);
 
   (function loop(){
     if(!canvas.isConnected){ redrawGraph=null; ro.disconnect(); return; } // view navigated away — stop the sim, free the frame
-    if(alpha>.02||drag!==null){tick(); alpha*=.996;}
+    if(T){
+      const o=occlusion(); if(o!==lastOccl){ lastOccl=o; T=layoutTree(); } // drawer opened or closed beside the map
+      tickTree();
+    } else if(alpha>.02||drag!==null){ tick(); alpha*=.996; }
     draw();
     for(const n of N) graphPos[n.fingerprint]={x:n.x,y:n.y}; // survive the 60s rebuild
     requestAnimationFrame(loop);
   })();
   const pos=ev=>{const r=canvas.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top};};
   const at=p=>{for(let i=N.length-1;i>=0;i--){const n=N[i],dx=p.x-n.x,dy=p.y-n.y;if(dx*dx+dy*dy<=(n.r+5)*(n.r+5))return i;}return null;};
-  canvas.onmousedown=ev=>{if(ev.button!==0)return;const p=pos(ev);const i=at(p);if(i!==null){drag=i;down=p;canvas.style.cursor='grabbing';}};
+  const atBadge=p=>{ if(!T) return null; for(let i=N.length-1;i>=0;i--){ const n=N[i]; if(!hasBadge(n)) continue; const b=badgeAt(n),dx=p.x-b.x,dy=p.y-b.y; if(dx*dx+dy*dy<=(b.r+3)*(b.r+3)) return i; } return null; };
+  const sideWord=n=>n.side==='left'?'parent':n.side==='right'?'subagent':'relationship';
+  canvas.onmousedown=ev=>{
+    if(ev.button!==0)return; const p=pos(ev);
+    const bi=atBadge(p); if(bi!==null){ badgeDown=bi; return; }
+    const i=at(p); if(i!==null){drag=i;down=p;canvas.style.cursor='grabbing';}
+  };
   canvas.onmousemove=ev=>{
     const p=pos(ev);
-    if(drag!==null){N[drag].x=p.x;N[drag].y=p.y;N[drag].vx=0;N[drag].vy=0;alpha=Math.max(alpha,.3);hideTip();return;}
+    if(drag!==null){N[drag].x=p.x;N[drag].y=p.y;N[drag].vx=0;N[drag].vy=0;N[drag].pinned=true;alpha=Math.max(alpha,.3);hideTip();return;}
+    const bi=atBadge(p); badgeHover=bi;
+    if(bi!==null){ hover=null; canvas.style.cursor='pointer'; const n=N[bi];
+      showTip(ev,n.name,n.expanded&&n.kids.length?'fold this branch away':`unfold ${n.hidden} more ${sideWord(n)}${n.hidden===1?'':'s'}`); return; }
     const i=at(p); hover=i; canvas.style.cursor=i!==null?'pointer':'grab';
     if(i!==null){const n=N[i];showTip(ev,n.name,`${n.status?n.status+' · ':''}${VENDOR_LABEL[n.vendor]||n.vendor} · ${fmt(n.runs)} runs · spawned others ${fmt(n.spawnsOut)}× · was spawned ${fmt(n.spawnsIn)}×`);}
     else hideTip();
@@ -930,6 +1039,7 @@ function initGraph(canvas){
   canvas.onmouseup=ev=>{
     if(ev.button!==0)return;
     canvas.style.cursor='grab';
+    if(badgeDown!==null){ const i=badgeDown; badgeDown=null; if(atBadge(pos(ev))===i) toggleExpand(N[i].fingerprint); return; }
     if(drag===null)return;
     const p=pos(ev), moved=down?Math.hypot(p.x-down.x,p.y-down.y):99;
     const i=drag; drag=null; down=null;
@@ -940,8 +1050,8 @@ function initGraph(canvas){
     }
   };
   /* Native dblclick rather than a delay timer on single click: the first click
-     already opens the drawer, which the focused view wants open anyway, so the
-     fix belongs in openAgent's de-dupe, not in taxing the primary interaction.
+     already opens the drawer, which the map wants open anyway, so the fix
+     belongs in openAgent's de-dupe, not in taxing the primary interaction.
      There is one canvas element, so the browser will fire dblclick even for two
      clicks on *different* bubbles — hence the same-node check. */
   canvas.ondblclick=ev=>{
@@ -951,11 +1061,11 @@ function initGraph(canvas){
     // The second click's mouseup has already overwritten lastClick, so the
     // same-node check must look at both clicks, not just the latest.
     if(j===null||!lastClick||!prevClick||lastClick.i!==j||prevClick.i!==j||lastClick.t-prevClick.t>900)return;
-    const fp=N[j].fingerprint;
+    const n=N[j];
     lastClick=prevClick=null;
-    focusAgent(fp);
+    if(!toggleExpand(n.fingerprint)&&T) flash(n.side==='right'?`${n.name} spawns nothing further`:n.side==='left'?`nothing else spawns ${n.name}`:`${n.name} has no other relationships`);
   };
-  canvas.onmouseleave=()=>{hover=null;drag=null;down=null;lastClick=prevClick=null;hideTip();canvas.style.cursor='grab';};
+  canvas.onmouseleave=()=>{hover=null;badgeHover=null;drag=null;down=null;badgeDown=null;lastClick=prevClick=null;hideTip();canvas.style.cursor='grab';};
 }
 
 /* ── RELATIONSHIPS TABLE — how each agent pair shares data ─────────────── */
@@ -1169,10 +1279,10 @@ async function openAgent(name, fp){
   // relationship rows drill sideways into the other agent
   drawer.querySelectorAll('[data-relfp]').forEach(row=>row.onclick=()=>{
     openAgent(row.dataset.relname, row.dataset.relfp);
-    if(currentRoute()==='lineage'&&GRAPH) focusAgent(row.dataset.relfp);
+    if(currentRoute()==='lineage'&&GRAPH) revealAgent(row.dataset.relfp);
   });
   const fb=drawer.querySelector('#dwFocus');
-  if(fb) fb.onclick=()=>focusAgent(a.fingerprint);
+  if(fb) fb.onclick=()=>revealAgent(a.fingerprint);
   renderTags(a.display_name, d.tags||[]);
   loadSpawnTree(d, seq);
 }
